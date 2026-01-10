@@ -451,14 +451,27 @@ If browser verification fails during an iteration:
 # Check if port is already in use
 lsof -i :3000
 
-# Identify the process first, then kill it safely
-# Review the output above to confirm it's the right process
-kill $(lsof -t -i:3000)
+# Review the output to identify the process
+# Make sure it's your dev server before killing
+# Look for process name (node, npm, yarn, etc.) and PID
 
-# If the process doesn't stop, use force kill as last resort
-# kill -9 $(lsof -t -i:3000)
+# Get the PID for manual verification
+PID=$(lsof -t -i:3000)
+echo "Process $PID is using port 3000"
+ps -p $PID  # Review process details
 
-# Try a different port
+# Kill the process (sends SIGTERM, allows graceful shutdown)
+kill $PID
+
+# If process still running after a few seconds, use force kill
+# WARNING: Force kill (SIGKILL) doesn't allow cleanup and may cause:
+# - Unsaved data loss
+# - Corrupted files
+# - Orphaned child processes
+# Only use as last resort:
+# kill -9 $PID
+
+# Alternative: Use a different port instead
 PORT=3001 npm run dev
 ```
 

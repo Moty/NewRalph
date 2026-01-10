@@ -92,11 +92,11 @@ npm run dev &
 sleep 5
 
 # Navigate and test
-browser_navigate http://localhost:3000/feature
+browser_navigate http://localhost:3000/dashboard
 browser_snapshot  # Verify page loaded
 browser_click "Submit button"
 browser_snapshot  # Verify result
-browser_take_screenshot feature-working.png
+browser_take_screenshot dashboard-feature-working.png
 ```
 
 ### What NOT to Do
