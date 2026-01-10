@@ -376,7 +376,32 @@ Ralph only works if there are feedback loops:
 
 ### Browser Verification for UI Stories
 
-Frontend stories must include "Verify in browser using dev-browser skill" in acceptance criteria. Ralph will use the dev-browser skill to navigate to the page, interact with the UI, and confirm changes work.
+Frontend stories must include browser verification in their acceptance criteria. Ralph agents have access to Playwright browser automation tools that allow them to:
+
+- Navigate to pages and verify they load correctly
+- Interact with UI elements (click buttons, fill forms, etc.)
+- Capture screenshots to document working features
+- Verify visual changes and functionality
+
+**Acceptance criteria should include:** "Verify in browser" or "Browser verification passes"
+
+**How it works:**
+When an agent implements a UI story, it will:
+1. Start your dev server (e.g., `npm run dev`)
+2. Use Playwright tools to navigate to the relevant page
+3. Interact with the UI to verify the changes work
+4. Take screenshots to confirm the feature is working
+5. Only mark the story as complete if browser verification passes
+
+**Available Playwright tools:**
+- `browser_navigate` - Open URLs
+- `browser_snapshot` - Capture page state with accessibility tree
+- `browser_click` - Click elements
+- `browser_type` - Fill in text fields
+- `browser_take_screenshot` - Document the working feature
+- And more (see your agent's tool documentation)
+
+This ensures UI changes are not just syntactically correct, but actually work from a user's perspective.
 
 ### Stop Condition
 
