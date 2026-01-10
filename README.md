@@ -48,6 +48,7 @@ Both methods will:
 - ✓ Check for required dependencies (jq, yq, claude/codex)
 - ✓ Copy all necessary files to your project
 - ✓ Configure your preferred agent (Claude Code or Codex)
+- ✓ Detect and cache available models automatically
 - ✓ Create template files (prd.json, progress.txt, AGENTS.md)
 - ✓ Update .gitignore appropriately
 
@@ -163,14 +164,22 @@ codex:
 
 ### Checking Available Models
 
-Use the helper script to see available models and current configuration:
+Ralph automatically detects and caches available models during setup. Use the helper script to view models and current configuration:
 
 ```bash
-./ralph-models.sh           # Show all models
-./ralph-models.sh claude    # Claude models only
-./ralph-models.sh codex     # Codex models only
-./ralph-models.sh config    # Current configuration
+./ralph-models.sh              # Show all models and cache info
+./ralph-models.sh --refresh    # Force refresh available models
+./ralph-models.sh claude       # Claude models only
+./ralph-models.sh codex        # Codex models only
+./ralph-models.sh config       # Current configuration
+./ralph-models.sh --help       # Show help
 ```
+
+**Model Caching:**
+- Models are automatically detected during `setup-ralph.sh`
+- Cached in `.ralph-models-cache.json` (refreshed every 24 hours)
+- Use `--refresh` flag to force immediate update
+- Falls back to curated defaults if detection fails
 
 ### Customize CLI commands (if needed)
 

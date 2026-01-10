@@ -182,6 +182,7 @@ if [ -f "$TARGET_DIR/.gitignore" ]; then
 .last-branch
 progress.txt
 ralph.log
+.ralph-models-cache.json
 archive/
 EOF
   fi
@@ -191,6 +192,7 @@ else
 .last-branch
 progress.txt
 ralph.log
+.ralph-models-cache.json
 archive/
 EOF
 fi
@@ -225,6 +227,39 @@ else
   yq -i '.agent.primary = "codex"' "$TARGET_DIR/agent.yaml"
   yq -i 'del(.agent.fallback)' "$TARGET_DIR/agent.yaml"
   echo -e "${GREEN}✓ Configured Codex as primary (no fallback)${NC}"
+fi
+
+# ---- Refresh available models ---------------------------------
+
+echo ""
+echo "Detecting available models..."
+
+# Run model refresh to populate cache
+if [ -f "$TARGET_DIR/lib/model-refresh.sh" ]; then
+  cd "$TARGET_DIR" || exit 1
+  source lib/model-refresh.sh
+  MODELS_CACHE="$TARGET_DIR/.ralph-models-cache.json"
+
+  # Perform initial model detection (suppress verbose output)
+  refresh_models >/dev/null 2>&1
+
+  if [ -f "$MODELS_CACHE" ]; then
+    echo -e "${GREEN}✓ Available models detected and cached${NC}"
+
+    # Show quick summary
+    local claude_count codex_count
+    claude_count=$(jq '.claude | length' "$MODELS_CACHE" 2>/dev/null || echo "0")
+    codex_count=$(jq '.codex | length' "$MODELS_CACHE" 2>/dev/null || echo "0")
+
+    echo "  • Claude models: $claude_count"
+    echo "  • Codex models: $codex_count"
+    echo ""
+    echo "  Run ${CYAN}./ralph-models.sh${NC} to see full list"
+  else
+    echo -e "${YELLOW}⚠ Model detection completed (using defaults)${NC}"
+  fi
+else
+  echo -e "${YELLOW}⚠ Model refresh utility not found (using static lists)${NC}"
 fi
 
 # ---- Setup complete -------------------------------------------
