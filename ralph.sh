@@ -256,15 +256,15 @@ run_agent() {
       echo -e "→ Running ${CYAN}GitHub Copilot${NC} (tool-approval: $TOOL_APPROVAL, timeout: ${AGENT_TIMEOUT}s)"
       command -v copilot >/dev/null 2>&1 || { echo -e "${RED}Error: Copilot CLI not found${NC}"; return 1; }
 
-      # Build tool approval flags
-      local TOOL_FLAGS=""
+      # Build tool approval flags as an array for proper quoting
+      local TOOL_FLAGS=()
       if [ "$TOOL_APPROVAL" = "allow-all" ]; then
-        TOOL_FLAGS="--allow-all-tools"
+        TOOL_FLAGS+=("--allow-all-tools")
         # Add deny-tools if specified
         local DENY_TOOLS=$(get_copilot_deny_tools)
         if [ -n "$DENY_TOOLS" ]; then
           while IFS= read -r tool; do
-            [ -n "$tool" ] && TOOL_FLAGS="$TOOL_FLAGS --deny-tool '$tool'"
+            [ -n "$tool" ] && TOOL_FLAGS+=("--deny-tool" "$tool")
           done <<< "$DENY_TOOLS"
         fi
       fi
@@ -274,9 +274,9 @@ run_agent() {
 
       # Run with timeout if run_with_timeout function exists
       if type run_with_timeout >/dev/null 2>&1; then
-        run_with_timeout "$AGENT_TIMEOUT" copilot -p "$PROMPT" $TOOL_FLAGS
+        run_with_timeout "$AGENT_TIMEOUT" copilot -p "$PROMPT" "${TOOL_FLAGS[@]}"
       else
-        copilot -p "$PROMPT" $TOOL_FLAGS
+        copilot -p "$PROMPT" "${TOOL_FLAGS[@]}"
       fi
       ;;
     *) echo -e "${RED}Unknown agent: $AGENT${NC}"; exit 1 ;;

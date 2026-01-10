@@ -273,8 +273,18 @@ if [ "$AGENT_COUNT" -gt 1 ]; then
       echo -e "${GREEN}✓ Configured $PRIMARY_NAME as primary (no fallback)${NC}"
     fi
   else
-    echo -e "${YELLOW}⚠ Invalid choice, using Claude Code as default${NC}"
-    yq -i '.agent.primary = "claude-code"' "$TARGET_DIR/agent.yaml"
+    # Invalid choice - use first available agent
+    echo -e "${YELLOW}⚠ Invalid choice, using first available agent as default${NC}"
+    if [ "$HAS_CLAUDE" = true ]; then
+      yq -i '.agent.primary = "claude-code"' "$TARGET_DIR/agent.yaml"
+      echo -e "${GREEN}✓ Configured Claude Code as primary${NC}"
+    elif [ "$HAS_CODEX" = true ]; then
+      yq -i '.agent.primary = "codex"' "$TARGET_DIR/agent.yaml"
+      echo -e "${GREEN}✓ Configured Codex as primary${NC}"
+    elif [ "$HAS_COPILOT" = true ]; then
+      yq -i '.agent.primary = "github-copilot"' "$TARGET_DIR/agent.yaml"
+      echo -e "${GREEN}✓ Configured GitHub Copilot CLI as primary${NC}"
+    fi
   fi
 elif [ "$HAS_CLAUDE" = true ]; then
   yq -i '.agent.primary = "claude-code"' "$TARGET_DIR/agent.yaml"
