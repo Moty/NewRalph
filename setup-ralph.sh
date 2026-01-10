@@ -93,6 +93,11 @@ echo "→ Copying ralph.sh"
 cp "$RALPH_DIR/ralph.sh" "$TARGET_DIR/"
 chmod +x "$TARGET_DIR/ralph.sh"
 
+# Copy PRD creation script
+echo "→ Copying create-prd.sh"
+cp "$RALPH_DIR/create-prd.sh" "$TARGET_DIR/"
+chmod +x "$TARGET_DIR/create-prd.sh"
+
 # Copy agent configuration
 echo "→ Copying agent.yaml"
 cp "$RALPH_DIR/agent.yaml" "$TARGET_DIR/"

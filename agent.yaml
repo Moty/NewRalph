@@ -17,7 +17,7 @@ claude-code:
 
 # Codex settings  
 codex:
-  model: codex  # or: o1, gpt-4o, etc.
-  approval-mode: full-auto  # full-auto, suggest, manual
+  model: codex-5.2  # latest Codex model (use gpt-4o / o1 variants if unavailable)
+  approval-mode: full-auto  # full-auto, danger, or omit for interactive
   # Additional CLI flags (optional)
-  # flags: "--quiet"
+  # flags: ""

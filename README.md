@@ -144,16 +144,15 @@ claude-code:
 
 # Codex settings  
 codex:
-  model: codex           # or: o1, gpt-4o, etc.
+  model: codex-5.2       # latest Codex; use o1/gpt-4o if unavailable
   approval-mode: full-auto
   # flags: "--quiet"  # Uncomment for silent runs
 ```
 
 **Model Selection:**
 - `claude-sonnet-4-20250514` - Latest Claude Sonnet (recommended)
-- `codex` - OpenAI Codex
-- `gpt-4o` - GPT-4 Optimized
-- `o1` - OpenAI O1
+- `codex-5.2` - Latest Codex (recommended)
+- `gpt-4o` / `o1` - Alternatives if `codex-5.2` unavailable
 
 **Approval Modes (Codex only):**
 - `full-auto` - No human confirmation needed (recommended for Ralph)

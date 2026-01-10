@@ -38,7 +38,7 @@ get_claude_model() {
 }
 
 get_codex_model() {
-  yq '.codex.model // "codex"' "$AGENT_CONFIG"
+  yq '.codex.model // "codex-5.2"' "$AGENT_CONFIG"
 }
 
 get_codex_approval_mode() {
@@ -52,8 +52,12 @@ run_agent() {
     claude-code)
       local MODEL=$(get_claude_model)
       echo "→ Running Claude Code (model: $MODEL)"
+      
+      # Find claude command (may be in ~/.local/bin)
+      local CLAUDE_CMD=$(command -v claude || echo "$HOME/.local/bin/claude")
+      
       # Claude Code CLI - adjust flags based on your installed version
-      claude --print \
+      "$CLAUDE_CMD" --print \
         --dangerously-skip-permissions \
         --model "$MODEL" \
         --system-prompt "$SCRIPT_DIR/system_instructions/system_instructions.md" \
@@ -62,12 +66,22 @@ run_agent() {
     codex)
       local MODEL=$(get_codex_model)
       local APPROVAL=$(get_codex_approval_mode)
-      echo "→ Running Codex (model: $MODEL)"
-      # OpenAI Codex CLI - adjust based on your installed version
-      codex --quiet \
-        --approval-mode "$APPROVAL" \
-        --model "$MODEL" \
-        "Read prd.json and implement the next incomplete story following $SCRIPT_DIR/system_instructions/system_instructions_codex.md"
+      echo "→ Running Codex (model: $MODEL, approval: $APPROVAL)"
+      
+      # Build approval flag based on config
+      local APPROVAL_FLAG=""
+      if [ "$APPROVAL" = "full-auto" ]; then
+        APPROVAL_FLAG="--full-auto"
+      elif [ "$APPROVAL" = "danger" ]; then
+        APPROVAL_FLAG="--dangerously-bypass-approvals-and-sandbox"
+      fi
+      
+      # Codex CLI - uses 'exec' subcommand for non-interactive mode
+      codex exec \
+        $APPROVAL_FLAG \
+        -m "$MODEL" \
+        --skip-git-repo-check \
+        "Read prd.json in this directory and implement the next incomplete story (where passes is false). Follow the instructions in system_instructions/system_instructions_codex.md exactly. When all stories are complete, output exactly: RALPH_COMPLETE"
       ;;
     *)
       echo "Unknown agent: $AGENT"
