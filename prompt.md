@@ -1,4 +1,10 @@
-# Ralph Agent Instructions
+# Ralph Agent Instructions (LEGACY)
+
+> **Note:** This file is kept for backward compatibility. The active instructions are now in:
+> - `system_instructions/system_instructions.md` (for Claude Code)
+> - `system_instructions/system_instructions_codex.md` (for Codex)
+
+---
 
 You are an autonomous coding agent working on a software project.
 
@@ -95,8 +101,9 @@ A frontend story is NOT complete until browser verification passes.
 
 After completing a user story, check if ALL stories have `passes: true`.
 
-If ALL stories are complete and passing, reply with:
-<promise>COMPLETE</promise>
+If ALL stories are complete and passing, output exactly:
+
+RALPH_COMPLETE
 
 If there are still stories with `passes: false`, end your response normally (another iteration will pick up the next story).
 

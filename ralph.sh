@@ -39,16 +39,20 @@ run_agent() {
   case "$AGENT" in
     claude-code)
       echo "→ Running Claude Code"
-      claude code \
-        --project "$SCRIPT_DIR" \
-        --instructions "$SCRIPT_DIR/system_instructions/system_instructions.md" \
-        --no-interactive
+      # Claude Code CLI - adjust flags based on your installed version
+      # Common patterns: claude, claude-code, or claude code
+      claude --print \
+        --dangerously-skip-permissions \
+        --system-prompt "$SCRIPT_DIR/system_instructions/system_instructions.md" \
+        "Read prd.json and implement the next incomplete story. Follow the system instructions exactly."
       ;;
     codex)
       echo "→ Running Codex"
-      codex run \
-        --repo "$SCRIPT_DIR" \
-        --instructions "$SCRIPT_DIR/system_instructions/system_instructions_codex.md"
+      # OpenAI Codex CLI - adjust based on your installed version
+      codex --quiet \
+        --approval-mode full-auto \
+        --model codex \
+        "Read prd.json and implement the next incomplete story following $SCRIPT_DIR/system_instructions/system_instructions_codex.md"
       ;;
     *)
       echo "Unknown agent: $AGENT"

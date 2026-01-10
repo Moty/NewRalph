@@ -46,6 +46,18 @@ agent:
 
 The script will use the primary agent and automatically fall back to the secondary if the primary fails.
 
+### Customize CLI commands (important!)
+
+The CLI commands in `ralph.sh` may need adjustment based on your installed agent versions. Edit the `run_agent()` function to match your CLI:
+
+```bash
+# For Claude Code - check your installed version's flags
+claude --print --dangerously-skip-permissions --system-prompt "..." "prompt"
+
+# For Codex - check your installed version's flags  
+codex --quiet --approval-mode full-auto "prompt"
+```
+
 ## Workflow
 
 ### 1. Create a PRD
@@ -67,6 +79,13 @@ Load the ralph skill and convert tasks/prd-[feature-name].md to prd.json
 ```
 
 This creates `prd.json` with user stories structured for autonomous execution.
+
+Alternatively, create `prd.json` manually using `prd.json.example` as a template:
+
+```bash
+cp prd.json.example prd.json
+# Edit prd.json with your user stories
+```
 
 ### 3. Run Ralph
 
