@@ -483,15 +483,23 @@ fi
 
 # Alternative: Use a different port instead
 # This runs the dev server on port 3001 if that port is free
-! lsof -i :3001 > /dev/null 2>&1 && PORT=3001 npm run dev
+if ! lsof -i :3001 > /dev/null 2>&1; then
+  PORT=3001 npm run dev
+fi
 
 # Or try multiple ports automatically until finding a free one
+FOUND_PORT=false
 for port in 3001 3002 3003; do
   if ! lsof -i :$port > /dev/null 2>&1; then
+    echo "Starting dev server on port $port"
     PORT=$port npm run dev
+    FOUND_PORT=true
     break
   fi
 done
+if [ "$FOUND_PORT" = false ]; then
+  echo "Error: All ports (3001-3003) are in use. Please free up a port or specify a different one."
+fi
 ```
 
 **Page won't load:**
