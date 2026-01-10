@@ -126,20 +126,13 @@ validate_prd_json() {
 
   # Validate each user story has required fields
   local story_required_fields=("id" "title" "description" "acceptanceCriteria" "priority" "passes")
-  local invalid_stories=$(jq -r --argjson fields "$(printf '%s\n' "${story_required_fields[@]}" | jq -R . | jq -s .)" '
-    .userStories | to_entries |
-    map(select(
-      .value |
-      ($fields | map(. as $f | $f | in($ARGS.named.story))) | any | not
-    )) |
-    map(.key)
-  ' --arg story "" "$prd_file")
 
   # More robust validation of user story structure
   local has_invalid=false
   for i in $(jq -r '.userStories | keys[]' "$prd_file"); do
     for field in "${story_required_fields[@]}"; do
-      if ! jq -e ".userStories[$i].$field" "$prd_file" >/dev/null 2>&1; then
+      # Use has() to check field existence - jq -e fails on falsy values like 'false'
+      if ! jq -e ".userStories[$i] | has(\"$field\")" "$prd_file" >/dev/null 2>&1; then
         log_error "User story at index $i missing field: $field"
         echo -e "${RED}Error: User story at index $i missing field: $field${NC}"
         has_invalid=true

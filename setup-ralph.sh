@@ -318,7 +318,6 @@ if [ -f "$TARGET_DIR/lib/model-refresh.sh" ]; then
     echo -e "${GREEN}✓ Available models detected and cached${NC}"
 
     # Show quick summary
-    local claude_count codex_count
     claude_count=$(jq '.claude | length' "$MODELS_CACHE" 2>/dev/null || echo "0")
     codex_count=$(jq '.codex | length' "$MODELS_CACHE" 2>/dev/null || echo "0")
 
