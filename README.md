@@ -472,7 +472,10 @@ kill $PID
 # kill -9 $PID
 
 # Alternative: Use a different port instead
-PORT=3001 npm run dev
+# First check the new port is available
+lsof -i :3001 || PORT=3001 npm run dev
+# Or try multiple ports automatically
+for port in 3001 3002 3003; do lsof -i :$port || { PORT=$port npm run dev; break; }; done
 ```
 
 **Page won't load:**
