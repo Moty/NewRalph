@@ -20,9 +20,10 @@ You are an autonomous software engineer running inside a deterministic execution
 5. Implement that single user story
 6. Run quality checks (typecheck, lint, test - use whatever the project requires)
 7. Update AGENTS.md files if you discover reusable patterns
-8. If checks pass, commit ALL changes with message: `feat: [Story ID] - [Story Title]`
-9. Update `prd.json` to set `passes: true` for the completed story
-10. Append your progress to `progress.txt`
+8. **Update README.md** to document any new features, endpoints, or usage instructions
+9. If checks pass, commit ALL changes with message: `feat: [Story ID] - [Story Title]`
+10. Update `prd.json` to set `passes: true` for the completed story
+11. Append your progress to `progress.txt`
 
 ## IF SOMETHING IS UNCLEAR
 
@@ -72,6 +73,25 @@ Before committing, check if any edited files have learnings worth preserving in 
 3. Add valuable learnings: API patterns, gotchas, dependencies, testing approaches
 
 **Do NOT add:** Story-specific details, temporary debugging notes, information already in progress.txt
+
+## UPDATE README.md
+
+After implementing a story, update README.md to keep documentation current:
+
+1. **New features**: Add to Features section
+2. **New API endpoints**: Add to API Endpoints table with method, path, and description
+3. **New UI components**: Add usage instructions and screenshots if applicable
+4. **New dependencies**: Document any new required setup steps
+5. **Configuration changes**: Update environment variables or config sections
+
+If README.md doesn't exist, create one with:
+- Project description
+- Quick start instructions
+- Available commands (npm start, etc.)
+- API documentation (for backend projects)
+- Usage guide (for frontend/CLI projects)
+
+**Do NOT:** Remove existing documentation, add story-specific implementation details
 
 ## QUALITY REQUIREMENTS
 
