@@ -113,6 +113,13 @@ mkdir -p "$TARGET_DIR/system_instructions"
 cp "$RALPH_DIR/system_instructions/system_instructions.md" "$TARGET_DIR/system_instructions/"
 cp "$RALPH_DIR/system_instructions/system_instructions_codex.md" "$TARGET_DIR/system_instructions/"
 
+# Copy lib directory with common functions
+if [ -d "$RALPH_DIR/lib" ]; then
+  echo "→ Copying lib/"
+  mkdir -p "$TARGET_DIR/lib"
+  cp -r "$RALPH_DIR/lib/"* "$TARGET_DIR/lib/"
+fi
+
 # Copy skills (optional)
 if [ -d "$RALPH_DIR/skills" ]; then
   echo "→ Copying skills/"
@@ -174,6 +181,7 @@ if [ -f "$TARGET_DIR/.gitignore" ]; then
 # Ralph
 .last-branch
 progress.txt
+ralph.log
 archive/
 EOF
   fi
@@ -182,6 +190,7 @@ else
 # Ralph
 .last-branch
 progress.txt
+ralph.log
 archive/
 EOF
 fi
@@ -236,12 +245,18 @@ echo ""
 echo "3. Run Ralph:"
 echo "   ${YELLOW}./ralph.sh${NC}"
 echo ""
+echo "Optional flags:"
+echo "   ${YELLOW}./ralph.sh 20 --verbose${NC}         # Run 20 iterations with verbose logging"
+echo "   ${YELLOW}./ralph.sh --timeout 7200${NC}       # Set 2-hour timeout per iteration"
+echo ""
 echo "Files created in $TARGET_DIR:"
 echo "  • ralph.sh - Main execution script"
 echo "  • agent.yaml - Agent configuration"
 echo "  • system_instructions/ - Agent prompts"
+echo "  • lib/ - Validation and utility functions"
 echo "  • prd.json - Project requirements"
 echo "  • progress.txt - Iteration log"
+echo "  • ralph.log - Debug log (verbose mode)"
 echo "  • AGENTS.md - Pattern documentation"
 echo "  • archive/ - Previous run backups"
 if [ -d "$RALPH_DIR/skills" ]; then

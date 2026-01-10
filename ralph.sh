@@ -1,6 +1,6 @@
 #!/bin/bash
 # Ralph Wiggum - Long-running AI agent loop (agent-agnostic)
-# Usage: ./ralph.sh [max_iterations] [--no-sleep-prevent]
+# Usage: ./ralph.sh [max_iterations] [--no-sleep-prevent] [--verbose] [--timeout SECONDS]
 
 set -e
 
@@ -8,13 +8,24 @@ set -e
 
 MAX_ITERATIONS=${1:-10}
 PREVENT_SLEEP=true
+export VERBOSE=false
+AGENT_TIMEOUT=3600  # Default 1 hour timeout per agent iteration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Check for --no-sleep-prevent flag
+# Check for flags
 for arg in "$@"; do
-  if [ "$arg" == "--no-sleep-prevent" ]; then
-    PREVENT_SLEEP=false
-  fi
+  case "$arg" in
+    --no-sleep-prevent)
+      PREVENT_SLEEP=false
+      ;;
+    --verbose|-v)
+      export VERBOSE=true
+      ;;
+    --timeout)
+      shift
+      AGENT_TIMEOUT="$1"
+      ;;
+  esac
 done
 
 PRD_FILE="$SCRIPT_DIR/prd.json"
@@ -22,41 +33,45 @@ PROGRESS_FILE="$SCRIPT_DIR/progress.txt"
 ARCHIVE_DIR="$SCRIPT_DIR/archive"
 LAST_BRANCH_FILE="$SCRIPT_DIR/.last-branch"
 AGENT_CONFIG="$SCRIPT_DIR/agent.yaml"
+export LOG_FILE="$SCRIPT_DIR/ralph.log"
 START_TIME=$(date +%s)
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+# ---- Load Common Library ------------------------------------------
+
+if [ -f "$SCRIPT_DIR/lib/common.sh" ]; then
+  source "$SCRIPT_DIR/lib/common.sh"
+else
+  echo "Warning: lib/common.sh not found, using basic functions"
+  # Fallback color definitions
+  RED='\033[0;31m'
+  GREEN='\033[0;32m'
+  YELLOW='\033[1;33m'
+  BLUE='\033[0;34m'
+  CYAN='\033[0;36m'
+  NC='\033[0m'
+fi
 
 # ---- Helper Functions ---------------------------------------------
-
-require_bin() {
-  command -v "$1" >/dev/null 2>&1 || {
-    echo -e "${RED}Missing required binary: $1${NC}"
-    exit 1
-  }
-}
 
 require_bin jq
 require_bin yq
 
-format_duration() {
-  local seconds=$1
-  local hours=$((seconds / 3600))
-  local minutes=$(((seconds % 3600) / 60))
-  local secs=$((seconds % 60))
-  if [ $hours -gt 0 ]; then
-    printf "%dh %dm %ds" $hours $minutes $secs
-  elif [ $minutes -gt 0 ]; then
-    printf "%dm %ds" $minutes $secs
-  else
-    printf "%ds" $secs
-  fi
-}
+# Use format_duration from common.sh, or define fallback if not loaded
+if ! type format_duration >/dev/null 2>&1; then
+  format_duration() {
+    local seconds=$1
+    local hours=$((seconds / 3600))
+    local minutes=$(((seconds % 3600) / 60))
+    local secs=$((seconds % 60))
+    if [ $hours -gt 0 ]; then
+      printf "%dh %dm %ds" $hours $minutes $secs
+    elif [ $minutes -gt 0 ]; then
+      printf "%dm %ds" $minutes $secs
+    else
+      printf "%ds" $secs
+    fi
+  }
+fi
 
 get_elapsed_time() {
   local now=$(date +%s)
@@ -197,27 +212,54 @@ fi
 
 run_agent() {
   local AGENT="$1"
+
+  log_info "Starting agent: $AGENT (timeout: ${AGENT_TIMEOUT}s)" 2>/dev/null || true
+
   case "$AGENT" in
     claude-code)
       local MODEL=$(get_claude_model)
-      echo -e "→ Running ${CYAN}Claude Code${NC} (model: $MODEL)"
+      echo -e "→ Running ${CYAN}Claude Code${NC} (model: $MODEL, timeout: ${AGENT_TIMEOUT}s)"
       [ -z "$CLAUDE_CMD" ] && { echo -e "${RED}Error: Claude CLI not found${NC}"; return 1; }
-      "$CLAUDE_CMD" --print --dangerously-skip-permissions --model "$MODEL" \
-        --system-prompt "$SCRIPT_DIR/system_instructions/system_instructions.md" \
-        "Read prd.json and implement the next incomplete story. Follow the system instructions exactly."
+
+      # Run with timeout if run_with_timeout function exists
+      if type run_with_timeout >/dev/null 2>&1; then
+        run_with_timeout "$AGENT_TIMEOUT" "$CLAUDE_CMD" --print --dangerously-skip-permissions --model "$MODEL" \
+          --system-prompt "$SCRIPT_DIR/system_instructions/system_instructions.md" \
+          "Read prd.json and implement the next incomplete story. Follow the system instructions exactly."
+      else
+        "$CLAUDE_CMD" --print --dangerously-skip-permissions --model "$MODEL" \
+          --system-prompt "$SCRIPT_DIR/system_instructions/system_instructions.md" \
+          "Read prd.json and implement the next incomplete story. Follow the system instructions exactly."
+      fi
       ;;
     codex)
       local MODEL=$(get_codex_model)
       local APPROVAL=$(get_codex_approval_mode)
-      echo -e "→ Running ${CYAN}Codex${NC} (model: $MODEL, approval: $APPROVAL)"
+      echo -e "→ Running ${CYAN}Codex${NC} (model: $MODEL, approval: $APPROVAL, timeout: ${AGENT_TIMEOUT}s)"
       local APPROVAL_FLAG=""
       [ "$APPROVAL" = "full-auto" ] && APPROVAL_FLAG="--full-auto"
       [ "$APPROVAL" = "danger" ] && APPROVAL_FLAG="--dangerously-bypass-approvals-and-sandbox"
-      codex exec $APPROVAL_FLAG -m "$MODEL" --skip-git-repo-check \
-        "Read prd.json and implement the next incomplete story. Follow system_instructions/system_instructions_codex.md. When all stories complete, output: RALPH_COMPLETE"
+
+      # Run with timeout if run_with_timeout function exists
+      if type run_with_timeout >/dev/null 2>&1; then
+        run_with_timeout "$AGENT_TIMEOUT" codex exec $APPROVAL_FLAG -m "$MODEL" --skip-git-repo-check \
+          "Read prd.json and implement the next incomplete story. Follow system_instructions/system_instructions_codex.md. When all stories complete, output: RALPH_COMPLETE"
+      else
+        codex exec $APPROVAL_FLAG -m "$MODEL" --skip-git-repo-check \
+          "Read prd.json and implement the next incomplete story. Follow system_instructions/system_instructions_codex.md. When all stories complete, output: RALPH_COMPLETE"
+      fi
       ;;
     *) echo -e "${RED}Unknown agent: $AGENT${NC}"; exit 1 ;;
   esac
+
+  local exit_code=$?
+  if [ $exit_code -eq 124 ]; then
+    log_error "Agent timed out after ${AGENT_TIMEOUT}s" 2>/dev/null || true
+    echo -e "${RED}Error: Agent execution timed out after ${AGENT_TIMEOUT}s${NC}"
+    echo -e "${YELLOW}Try increasing timeout with: --timeout <seconds>${NC}"
+  fi
+
+  return $exit_code
 }
 
 # ---- Archive previous run -----------------------------------------
@@ -242,6 +284,50 @@ fi
 
 [ ! -f "$PROGRESS_FILE" ] && { echo "# Ralph Progress Log" > "$PROGRESS_FILE"; echo "Started: $(date)" >> "$PROGRESS_FILE"; echo "---" >> "$PROGRESS_FILE"; }
 
+# ---- Validation ---------------------------------------------------
+
+echo ""
+echo -e "${CYAN}Running pre-flight checks...${NC}"
+echo ""
+
+# Validate agent configuration
+if type validate_agent_yaml >/dev/null 2>&1; then
+  if ! validate_agent_yaml "$AGENT_CONFIG"; then
+    echo -e "${RED}Agent configuration validation failed. Exiting.${NC}"
+    exit 1
+  fi
+else
+  echo -e "${YELLOW}Warning: Agent validation not available (lib/common.sh not loaded)${NC}"
+fi
+
+# Validate PRD if it exists
+if [ -f "$PRD_FILE" ]; then
+  if type validate_prd_json >/dev/null 2>&1; then
+    if ! validate_prd_json "$PRD_FILE"; then
+      echo -e "${RED}PRD validation failed. Exiting.${NC}"
+      exit 1
+    fi
+  else
+    echo -e "${YELLOW}Warning: PRD validation not available (lib/common.sh not loaded)${NC}"
+  fi
+else
+  echo -e "${YELLOW}Warning: prd.json not found at $PRD_FILE${NC}"
+  echo -e "${YELLOW}Ralph may not be able to proceed without a valid PRD${NC}"
+fi
+
+# Validate git status
+if type validate_git_status >/dev/null 2>&1; then
+  if ! validate_git_status true; then
+    echo -e "${RED}Git status check failed or was cancelled. Exiting.${NC}"
+    exit 1
+  fi
+else
+  echo -e "${YELLOW}Warning: Git validation not available (lib/common.sh not loaded)${NC}"
+fi
+
+echo -e "${GREEN}✓ Pre-flight checks complete${NC}"
+echo ""
+
 # ---- Main loop ----------------------------------------------------
 
 PRIMARY_AGENT=$(get_agent)
@@ -254,6 +340,9 @@ echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━
 echo -e "Primary agent: ${CYAN}$PRIMARY_AGENT${NC}"
 [ -n "$FALLBACK_AGENT" ] && echo -e "Fallback agent: ${CYAN}$FALLBACK_AGENT${NC}"
 echo -e "Max iterations: ${YELLOW}$MAX_ITERATIONS${NC}"
+echo -e "Agent timeout: ${YELLOW}${AGENT_TIMEOUT}s${NC}"
+[ "$VERBOSE" = true ] && echo -e "Verbose mode: ${GREEN}enabled${NC}"
+echo -e "Log file: ${BLUE}$LOG_FILE${NC}"
 echo -e "Started at: ${BLUE}$(date '+%Y-%m-%d %H:%M:%S')${NC}"
 
 start_sleep_prevention
