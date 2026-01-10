@@ -107,14 +107,17 @@ For stories with testable logic, also include:
 ```
 
 ### For stories that change UI, also include:
-```
-"Browser verification passes"
-```
 
-OR be more specific with what to verify:
+**Prefer specific verification criteria:**
 ```
 "Browser verification: Navigate to /page and verify X displays correctly"
 "Browser verification: Click button Y and verify Z happens"
+"Browser verification: Test filter dropdown and verify results update"
+```
+
+**Generic form (use only if specific criteria aren't applicable):**
+```
+"Browser verification passes"
 ```
 
 Frontend stories are NOT complete until visually verified using Playwright browser tools. The agent will start the dev server, navigate to the page, interact with the UI, and confirm changes work before marking the story complete.

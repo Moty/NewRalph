@@ -99,7 +99,10 @@ For any story that changes UI, you MUST verify it works using Playwright browser
 
 A frontend story is NOT complete until browser verification passes. If the page shows errors or the feature doesn't work visually, fix the issues before updating `passes: true`.
 
-**Note:** In some environments (like Claude Code CLI or Codex CLI), you may need to use a `dev-browser` skill instead. The specific tools available depend on your agent's environment.
+**Note:** The specific browser tools available depend on your agent's environment:
+- **GitHub Copilot environments**: Use Playwright tools (browser_navigate, browser_snapshot, browser_click, etc.)
+- **Claude Code/Codex CLI with skills**: May use a `dev-browser` skill
+- **Check your available tools**: Look at your tool documentation to see which browser automation capabilities you have
 
 ## Stop Condition
 

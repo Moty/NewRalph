@@ -383,7 +383,10 @@ Frontend stories must include browser verification in their acceptance criteria.
 - Capture screenshots to document working features
 - Verify visual changes and functionality
 
-**Acceptance criteria should include:** "Verify in browser" or "Browser verification passes"
+**Acceptance criteria should be specific about what to verify:**
+- Preferred: "Browser verification: Navigate to /dashboard and verify new chart displays"
+- Preferred: "Browser verification: Click submit button and verify success message appears"
+- Generic (less preferred): "Browser verification passes"
 
 **How it works:**
 When an agent implements a UI story, it will:
@@ -448,8 +451,12 @@ If browser verification fails during an iteration:
 # Check if port is already in use
 lsof -i :3000
 
-# Kill existing process if needed
+# Identify the process first, then kill it safely
+# Review the output above to confirm it's the right process
 kill $(lsof -t -i:3000)
+
+# If the process doesn't stop, use force kill as last resort
+# kill -9 $(lsof -t -i:3000)
 
 # Try a different port
 PORT=3001 npm run dev
