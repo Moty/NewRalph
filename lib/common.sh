@@ -203,13 +203,13 @@ validate_agent_yaml() {
 
   # Validate primary agent is a known type
   case "$primary_agent" in
-    claude-code|codex)
+    claude-code|codex|github-copilot)
       log_debug "Primary agent is valid: $primary_agent"
       ;;
     *)
       log_error "Unknown primary agent: $primary_agent"
       echo -e "${RED}Error: Unknown primary agent: $primary_agent${NC}"
-      echo -e "${YELLOW}Valid options: claude-code, codex${NC}"
+      echo -e "${YELLOW}Valid options: claude-code, codex, github-copilot${NC}"
       return 1
       ;;
   esac
@@ -218,13 +218,13 @@ validate_agent_yaml() {
   local fallback_agent=$(yq eval '.agent.fallback // ""' "$agent_file")
   if [ -n "$fallback_agent" ]; then
     case "$fallback_agent" in
-      claude-code|codex)
+      claude-code|codex|github-copilot)
         log_debug "Fallback agent is valid: $fallback_agent"
         ;;
       *)
         log_error "Unknown fallback agent: $fallback_agent"
         echo -e "${RED}Error: Unknown fallback agent: $fallback_agent${NC}"
-        echo -e "${YELLOW}Valid options: claude-code, codex${NC}"
+        echo -e "${YELLOW}Valid options: claude-code, codex, github-copilot${NC}"
         return 1
         ;;
     esac
