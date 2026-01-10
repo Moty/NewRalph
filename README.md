@@ -197,25 +197,48 @@ codex --quiet --approval-mode full-auto --model "model-name" "prompt"
 
 ### 1. Create a PRD
 
-Use the PRD skill to generate a detailed requirements document:
+**Recommended: Use the automated script**
 
+The `create-prd.sh` script automates the entire PRD creation process:
+
+```bash
+./create-prd.sh "A simple task management API with CRUD operations using Node.js and Express"
+```
+
+This script will:
+1. Load the PRD skill and ask clarifying questions
+2. Generate a structured PRD saved to `tasks/prd-draft.md`
+3. Automatically convert it to `prd.json` in Ralph's format
+4. Ensure stories are appropriately sized for single iterations
+5. Warn before overwriting existing `prd.json` files
+
+**Options:**
+```bash
+./create-prd.sh --help                    # Show help and usage information
+./create-prd.sh --draft-only "description" # Generate PRD markdown only (skip JSON conversion)
+```
+
+**Alternative: Manual step-by-step approach**
+
+If you prefer more control, you can run each step manually:
+
+**Step 1: Generate the PRD**
 ```
 Load the prd skill and create a PRD for [your feature description]
 ```
 
 Answer the clarifying questions. The skill saves output to `tasks/prd-[feature-name].md`.
 
-### 2. Convert PRD to Ralph format
-
-Use the Ralph skill to convert the markdown PRD to JSON:
-
+**Step 2: Convert PRD to Ralph format**
 ```
 Load the ralph skill and convert tasks/prd-[feature-name].md to prd.json
 ```
 
 This creates `prd.json` with user stories structured for autonomous execution.
 
-Alternatively, create `prd.json` manually using `prd.json.example` as a template:
+**Alternative: Manual JSON creation**
+
+For simple projects, create `prd.json` manually using `prd.json.example` as a template:
 
 ```bash
 cp prd.json.example prd.json
@@ -257,8 +280,11 @@ When you run `setup-ralph.sh`, these files are added to your project:
 ```
 your-project/
 ├─ ralph.sh                     # Main execution loop
+├─ create-prd.sh                # Automated PRD generation script
+├─ ralph-models.sh              # Model listing and cache management
 ├─ agent.yaml                   # Agent configuration
 ├─ prd.json                     # Your project requirements
+├─ prd.json.example             # Example PRD format
 ├─ progress.txt                 # Iteration log (auto-generated)
 ├─ AGENTS.md                    # Pattern documentation
 ├─ .last-branch                 # Branch tracking (auto-generated)
@@ -272,14 +298,16 @@ your-project/
 ```
 
 **Git Tracking:**
-- ✓ Commit: `ralph.sh`, `agent.yaml`, `prd.json`, `AGENTS.md`, `system_instructions/`, `skills/`
-- ✗ Ignore: `progress.txt`, `.last-branch`, `archive/` (automatically added to .gitignore)
+- ✓ Commit: `ralph.sh`, `create-prd.sh`, `ralph-models.sh`, `agent.yaml`, `prd.json`, `prd.json.example`, `AGENTS.md`, `system_instructions/`, `skills/`
+- ✗ Ignore: `progress.txt`, `.last-branch`, `archive/`, `.ralph-models-cache.json` (automatically added to .gitignore)
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
 | `ralph.sh` | The bash loop that spawns fresh agent instances |
+| `create-prd.sh` | Automated two-step PRD generation and conversion script |
+| `ralph-models.sh` | Model listing and cache management utility |
 | `agent.yaml` | Configuration for primary/fallback agent selection |
 | `system_instructions/` | Agent-specific instruction files |
 | `system_instructions/system_instructions.md` | Instructions for Claude Code |

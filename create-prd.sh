@@ -6,12 +6,36 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DESC="${1:-}"
+DRAFT_ONLY=false
 
-if [ -z "$PROJECT_DESC" ]; then
-  echo "Usage: ./create-prd.sh \"your project description\""
+# Parse flags
+if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+  echo "create-prd.sh - Automated PRD generation and conversion"
+  echo ""
+  echo "Usage: ./create-prd.sh [OPTIONS] \"your project description\""
+  echo ""
+  echo "Options:"
+  echo "  -h, --help        Show this help message"
+  echo "  --draft-only      Generate PRD draft only (skip JSON conversion)"
   echo ""
   echo "Example:"
   echo "  ./create-prd.sh \"A simple task management API with CRUD operations using Node.js and Express\""
+  echo ""
+  echo "Output:"
+  echo "  - tasks/prd-draft.md   Markdown PRD document"
+  echo "  - prd.json             Ralph-formatted JSON (unless --draft-only)"
+  exit 0
+fi
+
+if [ "$1" = "--draft-only" ]; then
+  DRAFT_ONLY=true
+  shift
+  PROJECT_DESC="${1:-}"
+fi
+
+if [ -z "$PROJECT_DESC" ]; then
+  echo "Usage: ./create-prd.sh \"your project description\""
+  echo "Run './create-prd.sh --help' for more options"
   exit 1
 fi
 
@@ -48,10 +72,42 @@ if [ ! -f "tasks/prd-draft.md" ]; then
   exit 1
 fi
 
+# If draft-only mode, skip conversion
+if [ "$DRAFT_ONLY" = true ]; then
+  echo ""
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "✓ PRD Draft Complete!"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+  echo "File created:"
+  echo "  • tasks/prd-draft.md - Original PRD"
+  echo ""
+  echo "Next steps:"
+  echo "  1. Review tasks/prd-draft.md"
+  echo "  2. Run without --draft-only to convert to prd.json"
+  echo "  3. Or manually convert: Load the ralph skill and convert tasks/prd-draft.md"
+  echo ""
+  exit 0
+fi
+
+# Warn if prd.json already exists
+if [ -f "prd.json" ]; then
+  echo ""
+  echo "⚠️  Warning: prd.json already exists in this directory."
+  echo "   Continuing will overwrite the existing file."
+  echo ""
+  read -p "Continue? (y/N): " -n 1 -r
+  echo
+  if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo "Cancelled. Your existing prd.json was not modified."
+    exit 0
+  fi
+fi
+
 # Convert PRD to prd.json using Claude with the Ralph skill
 "$CLAUDE_CMD" --print \
   --dangerously-skip-permissions \
-  "Load the ralph skill from $SCRIPT_DIR/skills/ralph/SKILL.md and convert tasks/prd-draft.md to prd.json. 
+  "Load the ralph skill from $SCRIPT_DIR/skills/ralph/SKILL.md and convert tasks/prd-draft.md to prd.json.
 
 Make sure each story is small and completable in one iteration. Save the output to prd.json in the current directory."
 

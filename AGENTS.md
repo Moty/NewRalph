@@ -38,11 +38,15 @@ cd flowchart && npm run build
 ## Key Files
 
 - `setup-ralph.sh` - Automated installation script for any project
+- `create-prd.sh` - Automated PRD generation and conversion script
 - `ralph.sh` - The bash loop that spawns fresh agent instances
+- `ralph-models.sh` - Model listing and cache management utility
 - `agent.yaml` - Configuration for primary/fallback agent selection
 - `system_instructions/system_instructions.md` - Instructions for Claude Code
 - `system_instructions/system_instructions_codex.md` - Instructions for Codex
 - `prd.json.example` - Example PRD format
+- `skills/prd/` - Skill for generating PRDs
+- `skills/ralph/` - Skill for converting PRDs to JSON
 - `flowchart/` - Interactive React Flow diagram explaining how Ralph works
 - `prompt.md` - Legacy prompt file (optional)
 
