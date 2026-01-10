@@ -1,7 +1,7 @@
 # Ralph Agent Configuration
 # 
 # CLI versions are determined by what's installed on your system.
-# Run: claude --version / codex --version to check.
+# Run: claude --version / codex --version / copilot --version to check.
 #
 # This file configures which agent to use and agent-specific options.
 
@@ -19,5 +19,17 @@ claude-code:
 codex:
   model: codex-5.2  # latest Codex model (use gpt-4o / o1 variants if unavailable)
   approval-mode: full-auto  # full-auto, danger, or omit for interactive
+  # Additional CLI flags (optional)
+  # flags: ""
+
+# GitHub Copilot CLI settings
+github-copilot:
+  # Tool permissions for automated execution
+  # Options: allow-all, selective, or omit for interactive
+  tool-approval: allow-all  # allow-all grants all tool permissions automatically
+  # Specific tools to deny even when allow-all is set (optional)
+  # deny-tools:
+  #   - "shell (rm)"
+  #   - "fetch"
   # Additional CLI flags (optional)
   # flags: ""

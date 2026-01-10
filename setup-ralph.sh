@@ -63,6 +63,7 @@ command -v yq >/dev/null 2>&1 || {
 
 HAS_CLAUDE=false
 HAS_CODEX=false
+HAS_COPILOT=false
 
 if command -v claude >/dev/null 2>&1; then
   HAS_CLAUDE=true
@@ -74,11 +75,17 @@ if command -v codex >/dev/null 2>&1; then
   echo -e "${GREEN}✓ Codex CLI found${NC}"
 fi
 
-if [ "$HAS_CLAUDE" = false ] && [ "$HAS_CODEX" = false ]; then
-  echo -e "${RED}Error: Neither Claude Code nor Codex CLI found${NC}"
+if command -v copilot >/dev/null 2>&1; then
+  HAS_COPILOT=true
+  echo -e "${GREEN}✓ GitHub Copilot CLI found${NC}"
+fi
+
+if [ "$HAS_CLAUDE" = false ] && [ "$HAS_CODEX" = false ] && [ "$HAS_COPILOT" = false ]; then
+  echo -e "${RED}Error: No AI agent CLI found${NC}"
   echo "Install at least one:"
   echo "  Claude Code: https://docs.anthropic.com/claude/docs/cli"
   echo "  Codex: https://github.com/openai/codex-cli"
+  echo "  GitHub Copilot CLI: npm install -g @github/copilot"
   exit 1
 fi
 
@@ -112,6 +119,7 @@ echo "→ Copying system_instructions/"
 mkdir -p "$TARGET_DIR/system_instructions"
 cp "$RALPH_DIR/system_instructions/system_instructions.md" "$TARGET_DIR/system_instructions/"
 cp "$RALPH_DIR/system_instructions/system_instructions_codex.md" "$TARGET_DIR/system_instructions/"
+cp "$RALPH_DIR/system_instructions/system_instructions_copilot.md" "$TARGET_DIR/system_instructions/"
 
 # Copy lib directory with common functions
 if [ -d "$RALPH_DIR/lib" ]; then
@@ -202,31 +210,84 @@ fi
 echo ""
 echo "Configuring agent preference..."
 
-if [ "$HAS_CLAUDE" = true ] && [ "$HAS_CODEX" = true ]; then
-  echo "Both Claude Code and Codex are available."
+AGENT_COUNT=0
+[ "$HAS_CLAUDE" = true ] && ((AGENT_COUNT++))
+[ "$HAS_CODEX" = true ] && ((AGENT_COUNT++))
+[ "$HAS_COPILOT" = true ] && ((AGENT_COUNT++))
+
+if [ "$AGENT_COUNT" -gt 1 ]; then
+  echo "Multiple AI agents are available."
   echo "Which would you like as primary?"
-  echo "  1) Claude Code"
-  echo "  2) Codex"
-  read -p "Enter choice (1-2): " -n 1 -r CHOICE
+  OPTION=1
+  [ "$HAS_CLAUDE" = true ] && echo "  $OPTION) Claude Code" && CLAUDE_OPTION=$OPTION && ((OPTION++))
+  [ "$HAS_CODEX" = true ] && echo "  $OPTION) Codex" && CODEX_OPTION=$OPTION && ((OPTION++))
+  [ "$HAS_COPILOT" = true ] && echo "  $OPTION) GitHub Copilot CLI" && COPILOT_OPTION=$OPTION && ((OPTION++))
+  
+  read -p "Enter choice (1-$((OPTION-1))): " -n 1 -r CHOICE
   echo ""
   
-  if [[ $CHOICE == "2" ]]; then
-    yq -i '.agent.primary = "codex"' "$TARGET_DIR/agent.yaml"
-    yq -i '.agent.fallback = "claude-code"' "$TARGET_DIR/agent.yaml"
-    echo -e "${GREEN}✓ Configured Codex as primary, Claude Code as fallback${NC}"
-  else
+  PRIMARY_SET=false
+  FALLBACK_SET=false
+  
+  if [ "$HAS_CLAUDE" = true ] && [ "$CHOICE" == "$CLAUDE_OPTION" ]; then
     yq -i '.agent.primary = "claude-code"' "$TARGET_DIR/agent.yaml"
-    yq -i '.agent.fallback = "codex"' "$TARGET_DIR/agent.yaml"
-    echo -e "${GREEN}✓ Configured Claude Code as primary, Codex as fallback${NC}"
+    PRIMARY_SET=true
+    # Set fallback to first available alternative
+    if [ "$HAS_CODEX" = true ]; then
+      yq -i '.agent.fallback = "codex"' "$TARGET_DIR/agent.yaml"
+      FALLBACK_SET=true
+    elif [ "$HAS_COPILOT" = true ]; then
+      yq -i '.agent.fallback = "github-copilot"' "$TARGET_DIR/agent.yaml"
+      FALLBACK_SET=true
+    fi
+  elif [ "$HAS_CODEX" = true ] && [ "$CHOICE" == "$CODEX_OPTION" ]; then
+    yq -i '.agent.primary = "codex"' "$TARGET_DIR/agent.yaml"
+    PRIMARY_SET=true
+    # Set fallback to first available alternative
+    if [ "$HAS_CLAUDE" = true ]; then
+      yq -i '.agent.fallback = "claude-code"' "$TARGET_DIR/agent.yaml"
+      FALLBACK_SET=true
+    elif [ "$HAS_COPILOT" = true ]; then
+      yq -i '.agent.fallback = "github-copilot"' "$TARGET_DIR/agent.yaml"
+      FALLBACK_SET=true
+    fi
+  elif [ "$HAS_COPILOT" = true ] && [ "$CHOICE" == "$COPILOT_OPTION" ]; then
+    yq -i '.agent.primary = "github-copilot"' "$TARGET_DIR/agent.yaml"
+    PRIMARY_SET=true
+    # Set fallback to first available alternative
+    if [ "$HAS_CLAUDE" = true ]; then
+      yq -i '.agent.fallback = "claude-code"' "$TARGET_DIR/agent.yaml"
+      FALLBACK_SET=true
+    elif [ "$HAS_CODEX" = true ]; then
+      yq -i '.agent.fallback = "codex"' "$TARGET_DIR/agent.yaml"
+      FALLBACK_SET=true
+    fi
+  fi
+  
+  if [ "$PRIMARY_SET" = true ]; then
+    PRIMARY_NAME=$(yq '.agent.primary' "$TARGET_DIR/agent.yaml")
+    if [ "$FALLBACK_SET" = true ]; then
+      FALLBACK_NAME=$(yq '.agent.fallback' "$TARGET_DIR/agent.yaml")
+      echo -e "${GREEN}✓ Configured $PRIMARY_NAME as primary, $FALLBACK_NAME as fallback${NC}"
+    else
+      echo -e "${GREEN}✓ Configured $PRIMARY_NAME as primary (no fallback)${NC}"
+    fi
+  else
+    echo -e "${YELLOW}⚠ Invalid choice, using Claude Code as default${NC}"
+    yq -i '.agent.primary = "claude-code"' "$TARGET_DIR/agent.yaml"
   fi
 elif [ "$HAS_CLAUDE" = true ]; then
   yq -i '.agent.primary = "claude-code"' "$TARGET_DIR/agent.yaml"
   yq -i 'del(.agent.fallback)' "$TARGET_DIR/agent.yaml"
   echo -e "${GREEN}✓ Configured Claude Code as primary (no fallback)${NC}"
-else
+elif [ "$HAS_CODEX" = true ]; then
   yq -i '.agent.primary = "codex"' "$TARGET_DIR/agent.yaml"
   yq -i 'del(.agent.fallback)' "$TARGET_DIR/agent.yaml"
   echo -e "${GREEN}✓ Configured Codex as primary (no fallback)${NC}"
+elif [ "$HAS_COPILOT" = true ]; then
+  yq -i '.agent.primary = "github-copilot"' "$TARGET_DIR/agent.yaml"
+  yq -i 'del(.agent.fallback)' "$TARGET_DIR/agent.yaml"
+  echo -e "${GREEN}✓ Configured GitHub Copilot CLI as primary (no fallback)${NC}"
 fi
 
 # ---- Refresh available models ---------------------------------

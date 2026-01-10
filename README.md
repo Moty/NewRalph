@@ -73,7 +73,12 @@ Both methods will:
   - Install from: https://github.com/openai/codex-cli
   - Verify: `codex --version`
 
-Ralph works with either agent and can use both with automatic fallback.
+- **GitHub Copilot CLI**
+  - Install: `npm install -g @github/copilot`
+  - Authenticate: Run `copilot` and use `/login`
+  - Verify: `copilot --version`
+
+Ralph works with any of these agents and can use multiple with automatic fallback.
 
 ## Uninstallation
 
@@ -135,7 +140,7 @@ Edit `agent.yaml` to configure agents and models:
 
 ```yaml
 agent:
-  primary: claude-code   # Options: claude-code, codex
+  primary: claude-code   # Options: claude-code, codex, github-copilot
   fallback: codex        # Optional fallback if primary fails
 
 # Claude Code settings
@@ -148,6 +153,14 @@ codex:
   model: codex-5.2       # latest Codex; use o1/gpt-4o if unavailable
   approval-mode: full-auto
   # flags: "--quiet"  # Uncomment for silent runs
+
+# GitHub Copilot CLI settings
+github-copilot:
+  tool-approval: allow-all  # allow-all grants all tool permissions automatically
+  # deny-tools:             # Optional: specific tools to deny
+  #   - "shell (rm)"
+  #   - "fetch"
+  # flags: ""
 ```
 
 **Model Selection:**
@@ -155,12 +168,17 @@ codex:
 - `codex-5.2` - Latest Codex (recommended)
 - `gpt-4o` / `o1` - Alternatives if `codex-5.2` unavailable
 
-**Approval Modes (Codex only):**
-- `full-auto` - No human confirmation needed (recommended for Ralph)
-- `review` - Review before executing
-- `manual` - Approve each step
+**Approval Modes:**
+- **Codex**: `full-auto`, `review`, `manual`
+  - `full-auto` - No human confirmation needed (recommended for Ralph)
+  - `review` - Review before executing
+  - `manual` - Approve each step
+- **GitHub Copilot**: `allow-all`, `selective`
+  - `allow-all` - Automatically approve all tools (recommended for Ralph)
+  - `selective` - Prompt for each tool (not recommended for automation)
+  - Optional `deny-tools` list to block specific tools even with `allow-all`
 
-**Note:** CLI tool versions are determined by what's installed on your system. Run `claude --version` or `codex --version` to check. The `agent.yaml` controls which **model** each CLI uses.
+**Note:** CLI tool versions are determined by what's installed on your system. Run `claude --version`, `codex --version`, or `copilot --version` to check. The `agent.yaml` controls which **model** each CLI uses.
 
 ### Checking Available Models
 
@@ -290,7 +308,8 @@ your-project/
 ├─ .last-branch                 # Branch tracking (auto-generated)
 ├─ system_instructions/         # Agent prompts
 │  ├─ system_instructions.md
-│  └─ system_instructions_codex.md
+│  ├─ system_instructions_codex.md
+│  └─ system_instructions_copilot.md
 ├─ skills/                      # Optional skills library
 │  ├─ prd/
 │  └─ ralph/
@@ -312,6 +331,7 @@ your-project/
 | `system_instructions/` | Agent-specific instruction files |
 | `system_instructions/system_instructions.md` | Instructions for Claude Code |
 | `system_instructions/system_instructions_codex.md` | Instructions for Codex |
+| `system_instructions/system_instructions_copilot.md` | Instructions for GitHub Copilot CLI |
 | `prd.json` | User stories with `passes` status (the task list) |
 | `prd.json.example` | Example PRD format for reference |
 | `progress.txt` | Append-only learnings for future iterations |
@@ -402,6 +422,7 @@ git log --oneline -10
 Edit the files in `system_instructions/` to customize agent behavior for your project:
 - `system_instructions.md` - Instructions for Claude Code
 - `system_instructions_codex.md` - Instructions for Codex
+- `system_instructions_copilot.md` - Instructions for GitHub Copilot CLI
 
 You can add:
 - Project-specific quality check commands

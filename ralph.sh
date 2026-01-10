@@ -202,6 +202,8 @@ get_fallback_agent() { yq '.agent.fallback // ""' "$AGENT_CONFIG"; }
 get_claude_model() { yq '.claude-code.model // "claude-sonnet-4-20250514"' "$AGENT_CONFIG"; }
 get_codex_model() { yq '.codex.model // "gpt-4o"' "$AGENT_CONFIG"; }
 get_codex_approval_mode() { yq '.codex.approval-mode // "full-auto"' "$AGENT_CONFIG"; }
+get_copilot_tool_approval() { yq '.github-copilot.tool-approval // "allow-all"' "$AGENT_CONFIG"; }
+get_copilot_deny_tools() { yq '.github-copilot.deny-tools[]? // ""' "$AGENT_CONFIG"; }
 
 CLAUDE_CMD=""
 if command -v claude &>/dev/null; then
@@ -247,6 +249,34 @@ run_agent() {
       else
         codex exec $APPROVAL_FLAG -m "$MODEL" --skip-git-repo-check \
           "Read prd.json and implement the next incomplete story. Follow system_instructions/system_instructions_codex.md. When all stories complete, output: RALPH_COMPLETE"
+      fi
+      ;;
+    github-copilot)
+      local TOOL_APPROVAL=$(get_copilot_tool_approval)
+      echo -e "→ Running ${CYAN}GitHub Copilot${NC} (tool-approval: $TOOL_APPROVAL, timeout: ${AGENT_TIMEOUT}s)"
+      command -v copilot >/dev/null 2>&1 || { echo -e "${RED}Error: Copilot CLI not found${NC}"; return 1; }
+
+      # Build tool approval flags
+      local TOOL_FLAGS=""
+      if [ "$TOOL_APPROVAL" = "allow-all" ]; then
+        TOOL_FLAGS="--allow-all-tools"
+        # Add deny-tools if specified
+        local DENY_TOOLS=$(get_copilot_deny_tools)
+        if [ -n "$DENY_TOOLS" ]; then
+          while IFS= read -r tool; do
+            [ -n "$tool" ] && TOOL_FLAGS="$TOOL_FLAGS --deny-tool '$tool'"
+          done <<< "$DENY_TOOLS"
+        fi
+      fi
+
+      # Construct the prompt
+      local PROMPT="Read prd.json and implement the next incomplete story. Follow the instructions in system_instructions/system_instructions_copilot.md exactly. When all stories are complete, output: RALPH_COMPLETE"
+
+      # Run with timeout if run_with_timeout function exists
+      if type run_with_timeout >/dev/null 2>&1; then
+        run_with_timeout "$AGENT_TIMEOUT" copilot -p "$PROMPT" $TOOL_FLAGS
+      else
+        copilot -p "$PROMPT" $TOOL_FLAGS
       fi
       ;;
     *) echo -e "${RED}Unknown agent: $AGENT${NC}"; exit 1 ;;
