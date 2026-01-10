@@ -457,25 +457,35 @@ lsof -i :3000
 
 # Get the PID for manual verification
 PID=$(lsof -t -i:3000)
-echo "Process $PID is using port 3000"
-ps -p $PID  # Review process details
-
-# Kill the process (sends SIGTERM, allows graceful shutdown)
-kill $PID
-
-# If process still running after a few seconds, use force kill
-# WARNING: Force kill (SIGKILL) doesn't allow cleanup and may cause:
-# - Unsaved data loss
-# - Corrupted files
-# - Orphaned child processes
-# Only use as last resort:
-# kill -9 $PID
+if [ -n "$PID" ]; then
+  echo "Process $PID is using port 3000"
+  ps -p $PID  # Review process details
+  
+  # Kill the process (sends SIGTERM, allows graceful shutdown)
+  kill $PID
+  
+  # If process still running after a few seconds, use force kill
+  # WARNING: Force kill (SIGKILL) doesn't allow cleanup and may cause:
+  # - Unsaved data loss
+  # - Corrupted files
+  # - Orphaned child processes
+  # Only use as last resort:
+  # kill -9 $PID
+else
+  echo "No process found using port 3000"
+fi
 
 # Alternative: Use a different port instead
-# First check the new port is available
-lsof -i :3001 || PORT=3001 npm run dev
-# Or try multiple ports automatically
-for port in 3001 3002 3003; do lsof -i :$port || { PORT=$port npm run dev; break; }; done
+# This runs the dev server on port 3001 if that port is free
+lsof -i :3001 > /dev/null 2>&1 || PORT=3001 npm run dev
+
+# Or try multiple ports automatically until finding a free one
+for port in 3001 3002 3003; do
+  if ! lsof -i :$port > /dev/null 2>&1; then
+    PORT=$port npm run dev
+    break
+  fi
+done
 ```
 
 **Page won't load:**
