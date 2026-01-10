@@ -455,29 +455,35 @@ lsof -i :3000
 # Make sure it's your dev server before killing
 # Look for process name (node, npm, yarn, etc.) and PID
 
-# Get the PID for manual verification
-PID=$(lsof -t -i:3000)
-if [ -n "$PID" ]; then
-  echo "Process $PID is using port 3000"
-  ps -p $PID  # Review process details
+# Get the PID(s) for manual verification
+# Note: There might be multiple processes using the port
+PIDS=$(lsof -t -i:3000)
+if [ -n "$PIDS" ]; then
+  echo "Process(es) using port 3000:"
+  echo "$PIDS" | while read pid; do
+    ps -p $pid
+  done
   
-  # Kill the process (sends SIGTERM, allows graceful shutdown)
-  kill $PID
+  # Kill each process (sends SIGTERM, allows graceful shutdown)
+  echo "$PIDS" | while read pid; do
+    echo "Killing process $pid"
+    kill $pid
+  done
   
-  # If process still running after a few seconds, use force kill
+  # If processes still running after a few seconds, use force kill
   # WARNING: Force kill (SIGKILL) doesn't allow cleanup and may cause:
   # - Unsaved data loss
   # - Corrupted files
   # - Orphaned child processes
   # Only use as last resort:
-  # kill -9 $PID
+  # echo "$PIDS" | while read pid; do kill -9 $pid; done
 else
   echo "No process found using port 3000"
 fi
 
 # Alternative: Use a different port instead
 # This runs the dev server on port 3001 if that port is free
-lsof -i :3001 > /dev/null 2>&1 || PORT=3001 npm run dev
+! lsof -i :3001 > /dev/null 2>&1 && PORT=3001 npm run dev
 
 # Or try multiple ports automatically until finding a free one
 for port in 3001 3002 3003; do
