@@ -87,10 +87,30 @@ Before committing, check if any edited files have learnings worth preserving in 
 
 ## BROWSER TESTING (For Frontend Stories)
 
-For any story that changes UI:
-1. Navigate to the relevant page
-2. Verify the UI changes work as expected
-3. A frontend story is NOT complete until browser verification passes
+For any story that changes UI, you MUST verify it works using Playwright browser tools:
+
+1. **Start the dev server** if needed (e.g., `npm run dev`, `yarn dev`)
+2. **Use browser_navigate** to open the relevant page (e.g., `http://localhost:3000/dashboard`)
+3. **Use browser_snapshot** to capture the page state and verify elements are present
+4. **Use browser_click, browser_type, etc.** to interact with the UI and test functionality
+5. **Take a screenshot** using browser_take_screenshot to document the working feature
+6. **Verify the changes** work as expected before marking the story complete
+
+A frontend story is NOT complete until browser verification passes. If the page shows errors or the feature doesn't work visually, fix the issues before updating `passes: true`.
+
+**Example verification steps:**
+```
+# Start dev server in background
+npm run dev &
+sleep 5
+
+# Navigate and verify
+browser_navigate http://localhost:3000
+browser_snapshot  # Check page loaded correctly
+browser_click "Submit button"
+browser_snapshot  # Verify form submitted
+browser_take_screenshot
+```
 
 ## STOP CONDITION
 

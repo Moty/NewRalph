@@ -376,7 +376,52 @@ Ralph only works if there are feedback loops:
 
 ### Browser Verification for UI Stories
 
-Frontend stories must include "Verify in browser using dev-browser skill" in acceptance criteria. Ralph will use the dev-browser skill to navigate to the page, interact with the UI, and confirm changes work.
+Frontend stories must include browser verification in their acceptance criteria. Ralph agents have access to Playwright browser automation tools that allow them to:
+
+- Navigate to pages and verify they load correctly
+- Interact with UI elements (click buttons, fill forms, etc.)
+- Capture screenshots to document working features
+- Verify visual changes and functionality
+
+**Acceptance criteria should be specific about what to verify:**
+- Preferred: "Browser verification: Navigate to /dashboard and verify new chart displays"
+- Preferred: "Browser verification: Click submit button and verify success message appears"
+- Generic (less preferred): "Browser verification passes"
+
+**How it works:**
+When an agent implements a UI story, it will:
+1. Start your dev server (e.g., `npm run dev`)
+2. Use Playwright tools to navigate to the relevant page
+3. Interact with the UI to verify the changes work
+4. Take screenshots to confirm the feature is working
+5. Only mark the story as complete if browser verification passes
+
+**Available Playwright tools:**
+- `browser_navigate` - Open URLs
+- `browser_snapshot` - Capture page state with accessibility tree
+- `browser_click` - Click elements
+- `browser_type` - Fill in text fields
+- `browser_take_screenshot` - Document the working feature
+- And more (see your agent's tool documentation)
+
+This ensures UI changes are not just syntactically correct, but actually work from a user's perspective.
+
+**Tips for effective browser verification:**
+- **Start your dev server first**: Use async mode or background processes (`npm run dev &`)
+- **Wait for server to be ready**: Add a short sleep after starting the server
+- **Use browser_snapshot for debugging**: It shows the page's accessibility tree, useful for finding element selectors
+- **Take screenshots of working features**: Documents the completion for your progress log
+- **Test interactions, not just rendering**: Click buttons, fill forms, verify state changes
+- **Check for console errors**: Use browser tools to ensure no JavaScript errors
+
+**Example workflow in progress.txt:**
+```
+Started dev server on port 3000
+Used browser_navigate to open http://localhost:3000/dashboard
+Verified new priority filter dropdown renders correctly
+Clicked "High Priority" filter and confirmed only high-priority tasks displayed
+Took screenshot showing the working filter
+```
 
 ### Stop Condition
 
@@ -396,6 +441,91 @@ cat progress.txt
 # Check git history
 git log --oneline -10
 ```
+
+### Troubleshooting Browser Verification
+
+If browser verification fails during an iteration:
+
+**Server won't start:**
+```bash
+# Check if port is already in use
+lsof -i :3000
+
+# Review the output to identify the process
+# Make sure it's your dev server before killing
+# Look for process name (node, npm, yarn, etc.) and PID
+
+# Get the PID(s) for manual verification
+# Note: There might be multiple processes using the port
+PIDS=$(lsof -t -i:3000)
+if [ -n "$PIDS" ]; then
+  echo "Process(es) using port 3000:"
+  echo "$PIDS" | while read pid; do
+    ps -p $pid
+  done
+  
+  # Kill each process (sends SIGTERM, allows graceful shutdown)
+  echo "$PIDS" | while read pid; do
+    echo "Killing process $pid"
+    kill $pid
+  done
+  
+  # If processes still running after a few seconds, use force kill
+  # WARNING: Force kill (SIGKILL) doesn't allow cleanup and may cause:
+  # - Unsaved data loss
+  # - Corrupted files
+  # - Orphaned child processes
+  # Only use as last resort:
+  # echo "$PIDS" | while read pid; do kill -9 $pid; done
+else
+  echo "No process found using port 3000"
+fi
+
+# Alternative: Use a different port instead
+# This runs the dev server on port 3001 if that port is free
+if ! lsof -i :3001 > /dev/null 2>&1; then
+  PORT=3001 npm run dev
+fi
+
+# Or try multiple ports automatically until finding a free one
+FOUND_PORT=false
+for port in 3001 3002 3003; do
+  if ! lsof -i :$port > /dev/null 2>&1; then
+    echo "Starting dev server on port $port"
+    PORT=$port npm run dev
+    FOUND_PORT=true
+    break
+  fi
+done
+if [ "$FOUND_PORT" = false ]; then
+  echo "Error: All ports (3001-3003) are in use. Please free up a port or specify a different one."
+fi
+```
+
+**Page won't load:**
+```bash
+# Verify server is running
+curl http://localhost:3000
+
+# Check server logs for errors
+# (Look at the process output where you started the dev server)
+
+# Wait longer for server startup
+sleep 10  # instead of sleep 5
+```
+
+**Elements not found:**
+- Use `browser_snapshot` to see the page's accessibility tree
+- Check element selectors match what's actually rendered
+- Ensure JavaScript has finished loading (add small delay)
+- Look for elements by aria-label, role, or visible text
+
+**Screenshots show errors:**
+- Check browser console for JavaScript errors
+- Verify all dependencies are installed
+- Check that environment variables are set correctly
+- Review server logs for API errors
+
 
 ## Customizing System Instructions
 

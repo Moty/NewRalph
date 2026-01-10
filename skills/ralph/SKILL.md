@@ -107,11 +107,20 @@ For stories with testable logic, also include:
 ```
 
 ### For stories that change UI, also include:
+
+**Prefer specific verification criteria:**
 ```
-"Verify in browser using dev-browser skill"
+"Browser verification: Navigate to /page and verify X displays correctly"
+"Browser verification: Click button Y and verify Z happens"
+"Browser verification: Test filter dropdown and verify results update"
 ```
 
-Frontend stories are NOT complete until visually verified. Ralph will use the dev-browser skill to navigate to the page, interact with the UI, and confirm changes work.
+**Generic form (use only if specific criteria aren't applicable):**
+```
+"Browser verification passes"
+```
+
+Frontend stories are NOT complete until visually verified using Playwright browser tools. The agent will start the dev server, navigate to the page, interact with the UI, and confirm changes work before marking the story complete.
 
 ---
 
@@ -188,7 +197,7 @@ Add ability to mark tasks with different statuses.
         "Each task card shows colored status badge",
         "Badge colors: gray=pending, blue=in_progress, green=done",
         "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Browser verification: Navigate to task list and verify badges display correctly"
       ],
       "priority": 2,
       "passes": false,
@@ -203,7 +212,7 @@ Add ability to mark tasks with different statuses.
         "Changing status saves immediately",
         "UI updates without page refresh",
         "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Browser verification: Click status toggle and verify UI updates"
       ],
       "priority": 3,
       "passes": false,
@@ -217,7 +226,7 @@ Add ability to mark tasks with different statuses.
         "Filter dropdown: All | Pending | In Progress | Done",
         "Filter persists in URL params",
         "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Browser verification: Test each filter option and verify correct tasks show"
       ],
       "priority": 4,
       "passes": false,
@@ -252,6 +261,6 @@ Before writing prd.json, verify:
 - [ ] Each story is completable in one iteration (small enough)
 - [ ] Stories are ordered by dependency (schema to backend to UI)
 - [ ] Every story has "Typecheck passes" as criterion
-- [ ] UI stories have "Verify in browser using dev-browser skill" as criterion
+- [ ] UI stories have browser verification criterion (e.g., "Browser verification: Navigate to X and verify Y")
 - [ ] Acceptance criteria are verifiable (not vague)
 - [ ] No story depends on a later story
