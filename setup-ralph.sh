@@ -98,6 +98,11 @@ echo "→ Copying create-prd.sh"
 cp "$RALPH_DIR/create-prd.sh" "$TARGET_DIR/"
 chmod +x "$TARGET_DIR/create-prd.sh"
 
+# Copy models helper script
+echo "→ Copying ralph-models.sh"
+cp "$RALPH_DIR/ralph-models.sh" "$TARGET_DIR/"
+chmod +x "$TARGET_DIR/ralph-models.sh"
+
 # Copy agent configuration
 echo "→ Copying agent.yaml"
 cp "$RALPH_DIR/agent.yaml" "$TARGET_DIR/"

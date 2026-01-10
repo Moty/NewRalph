@@ -161,6 +161,17 @@ codex:
 
 **Note:** CLI tool versions are determined by what's installed on your system. Run `claude --version` or `codex --version` to check. The `agent.yaml` controls which **model** each CLI uses.
 
+### Checking Available Models
+
+Use the helper script to see available models and current configuration:
+
+```bash
+./ralph-models.sh           # Show all models
+./ralph-models.sh claude    # Claude models only
+./ralph-models.sh codex     # Codex models only
+./ralph-models.sh config    # Current configuration
+```
+
 ### Customize CLI commands (if needed)
 
 The CLI commands in `ralph.sh` may need adjustment based on your installed agent versions. Edit the `run_agent()` function to match your CLI:
@@ -205,10 +216,20 @@ cp prd.json.example prd.json
 ### 3. Run Ralph
 
 ```bash
-./ralph.sh [max_iterations]
+./ralph.sh [max_iterations] [--no-sleep-prevent]
 ```
 
 Default is 10 iterations.
+
+**Options:**
+- `max_iterations` - Maximum number of iterations (default: 10)
+- `--no-sleep-prevent` - Disable automatic sleep prevention
+
+**Features:**
+- ☕ **Sleep Prevention**: Automatically uses `caffeinate` (macOS) or `systemd-inhibit` (Linux) to prevent system sleep during long runs
+- 📊 **Progress Display**: Shows current story, completion progress, and elapsed time
+- ⚠️ **Rate Limit Detection**: Automatically stops if API rate limits are hit
+- 🔄 **Fallback Support**: Tries the fallback agent if the primary agent fails
 
 Ralph will:
 1. Create a feature branch (from PRD `branchName`)
