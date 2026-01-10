@@ -36,26 +36,37 @@ Copy the skills to your preferred agent's config directory for use across all pr
 
 ### Configure the agent
 
-Edit `agent.yaml` to select your primary and fallback agents:
+Edit `agent.yaml` to configure agents and models:
 
 ```yaml
 agent:
   primary: claude-code   # Options: claude-code, codex
   fallback: codex        # Optional fallback if primary fails
+
+# Claude Code settings
+claude-code:
+  model: claude-sonnet-4-20250514  # or: claude-3-5-sonnet, claude-3-opus, etc.
+
+# Codex settings  
+codex:
+  model: codex           # or: o1, gpt-4o, etc.
+  approval-mode: full-auto
 ```
 
 The script will use the primary agent and automatically fall back to the secondary if the primary fails.
 
-### Customize CLI commands (important!)
+**Note:** CLI tool versions are determined by what's installed on your system. Run `claude --version` or `codex --version` to check. The `agent.yaml` controls which **model** each CLI uses.
+
+### Customize CLI commands (if needed)
 
 The CLI commands in `ralph.sh` may need adjustment based on your installed agent versions. Edit the `run_agent()` function to match your CLI:
 
 ```bash
 # For Claude Code - check your installed version's flags
-claude --print --dangerously-skip-permissions --system-prompt "..." "prompt"
+claude --print --dangerously-skip-permissions --model "model-name" --system-prompt "..." "prompt"
 
 # For Codex - check your installed version's flags  
-codex --quiet --approval-mode full-auto "prompt"
+codex --quiet --approval-mode full-auto --model "model-name" "prompt"
 ```
 
 ## Workflow

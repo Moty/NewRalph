@@ -1,3 +1,23 @@
+# Ralph Agent Configuration
+# 
+# CLI versions are determined by what's installed on your system.
+# Run: claude --version / codex --version to check.
+#
+# This file configures which agent to use and agent-specific options.
+
 agent:
   primary: claude-code
   fallback: codex
+
+# Claude Code settings
+claude-code:
+  model: claude-sonnet-4-20250514  # or: claude-3-5-sonnet, claude-3-opus, etc.
+  # Additional CLI flags (optional)
+  # flags: "--verbose"
+
+# Codex settings  
+codex:
+  model: codex  # or: o1, gpt-4o, etc.
+  approval-mode: full-auto  # full-auto, suggest, manual
+  # Additional CLI flags (optional)
+  # flags: "--quiet"

@@ -33,25 +33,40 @@ get_fallback_agent() {
   yq '.agent.fallback // ""' "$AGENT_CONFIG"
 }
 
+get_claude_model() {
+  yq '.claude-code.model // "claude-sonnet-4-20250514"' "$AGENT_CONFIG"
+}
+
+get_codex_model() {
+  yq '.codex.model // "codex"' "$AGENT_CONFIG"
+}
+
+get_codex_approval_mode() {
+  yq '.codex.approval-mode // "full-auto"' "$AGENT_CONFIG"
+}
+
 run_agent() {
   local AGENT="$1"
 
   case "$AGENT" in
     claude-code)
-      echo "→ Running Claude Code"
+      local MODEL=$(get_claude_model)
+      echo "→ Running Claude Code (model: $MODEL)"
       # Claude Code CLI - adjust flags based on your installed version
-      # Common patterns: claude, claude-code, or claude code
       claude --print \
         --dangerously-skip-permissions \
+        --model "$MODEL" \
         --system-prompt "$SCRIPT_DIR/system_instructions/system_instructions.md" \
         "Read prd.json and implement the next incomplete story. Follow the system instructions exactly."
       ;;
     codex)
-      echo "→ Running Codex"
+      local MODEL=$(get_codex_model)
+      local APPROVAL=$(get_codex_approval_mode)
+      echo "→ Running Codex (model: $MODEL)"
       # OpenAI Codex CLI - adjust based on your installed version
       codex --quiet \
-        --approval-mode full-auto \
-        --model codex \
+        --approval-mode "$APPROVAL" \
+        --model "$MODEL" \
         "Read prd.json and implement the next incomplete story following $SCRIPT_DIR/system_instructions/system_instructions_codex.md"
       ;;
     *)
