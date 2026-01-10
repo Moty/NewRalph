@@ -1,0 +1,3 @@
+agent:
+  primary: claude-code
+  fallback: codex
