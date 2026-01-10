@@ -8,16 +8,105 @@ Based on [Geoffrey Huntley's Ralph pattern](https://ghuntley.com/ralph/).
 
 [Read my in-depth article on how I use Ralph](https://x.com/ryancarson/status/2008548371712135632)
 
+## Quick Start
+
+### Option 1: Global Installation (Recommended)
+
+Install Ralph globally to use from anywhere:
+
+```bash
+# Clone Ralph repository
+git clone https://github.com/snarktank/ralph.git
+cd ralph
+
+# Install globally (requires sudo)
+./install.sh
+
+# Now use from anywhere
+cd /path/to/your/project
+ralph-setup .
+```
+
+This creates a global `ralph-setup` command in `/usr/local/bin/` that points to your Ralph installation.
+
+### Option 2: Direct Installation
+
+Run setup from the Ralph repository:
+
+```bash
+# Clone Ralph repository
+git clone https://github.com/snarktank/ralph.git
+cd ralph
+
+# Install Ralph into your project
+./setup-ralph.sh /path/to/your/project
+
+# Follow the interactive prompts to configure your preferred agent
+```
+
+Both methods will:
+- ✓ Check for required dependencies (jq, yq, claude/codex)
+- ✓ Copy all necessary files to your project
+- ✓ Configure your preferred agent (Claude Code or Codex)
+- ✓ Create template files (prd.json, progress.txt, AGENTS.md)
+- ✓ Update .gitignore appropriately
+
 ## Prerequisites
 
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) and/or [Codex CLI](https://github.com/openai/codex) installed and authenticated
-- `jq` installed (`brew install jq` on macOS)
-- `yq` installed (`brew install yq` on macOS)
-- A git repository for your project
+### Required Tools
+- **jq** - JSON processor
+  ```bash
+  brew install jq
+  ```
+- **yq** - YAML processor
+  ```bash
+  brew install yq
+  ```
+
+### At Least One AI Agent CLI
+- **Claude Code CLI**
+  - Install from: https://docs.anthropic.com/claude/docs/cli
+  - Verify: `claude --version`
+
+- **Codex CLI** (OpenAI)
+  - Install from: https://github.com/openai/codex-cli
+  - Verify: `codex --version`
+
+Ralph works with either agent and can use both with automatic fallback.
+
+## Uninstallation
+
+If you installed Ralph globally:
+
+```bash
+sudo rm /usr/local/bin/ralph-setup
+```
+
+To remove Ralph from a project, delete the installed files:
+
+```bash
+rm ralph.sh agent.yaml prd.json progress.txt AGENTS.md .last-branch
+rm -rf system_instructions/ skills/ archive/
+```
 
 ## Setup
 
-### Option 1: Copy to your project
+### Automated Setup (Use this!)
+
+The `setup-ralph.sh` script handles everything:
+
+```bash
+# From the Ralph repository
+./setup-ralph.sh /path/to/your/project
+```
+
+This will copy all necessary files and guide you through configuration.
+
+### Manual Setup
+
+If you prefer manual installation:
+
+#### Option 1: Copy to your project
 
 Copy the ralph files into your project:
 
@@ -27,14 +116,19 @@ mkdir -p scripts/ralph
 cp /path/to/ralph/ralph.sh scripts/ralph/
 cp -r /path/to/ralph/system_instructions scripts/ralph/
 cp /path/to/ralph/agent.yaml scripts/ralph/
+cp /path/to/ralph/prd.json.example scripts/ralph/prd.json
 chmod +x scripts/ralph/ralph.sh
 ```
 
-### Option 2: Install skills globally
+#### Option 2: Install skills globally
 
 Copy the skills to your preferred agent's config directory for use across all projects.
 
-### Configure the agent
+## Configuration
+
+### agent.yaml
+
+The setup script automatically configures this based on installed CLIs, but you can customize:
 
 Edit `agent.yaml` to configure agents and models:
 
@@ -46,14 +140,25 @@ agent:
 # Claude Code settings
 claude-code:
   model: claude-sonnet-4-20250514  # or: claude-3-5-sonnet, claude-3-opus, etc.
+  # flags: "--verbose"  # Uncomment for debugging
 
 # Codex settings  
 codex:
   model: codex           # or: o1, gpt-4o, etc.
   approval-mode: full-auto
+  # flags: "--quiet"  # Uncomment for silent runs
 ```
 
-The script will use the primary agent and automatically fall back to the secondary if the primary fails.
+**Model Selection:**
+- `claude-sonnet-4-20250514` - Latest Claude Sonnet (recommended)
+- `codex` - OpenAI Codex
+- `gpt-4o` - GPT-4 Optimized
+- `o1` - OpenAI O1
+
+**Approval Modes (Codex only):**
+- `full-auto` - No human confirmation needed (recommended for Ralph)
+- `review` - Review before executing
+- `manual` - Approve each step
 
 **Note:** CLI tool versions are determined by what's installed on your system. Run `claude --version` or `codex --version` to check. The `agent.yaml` controls which **model** each CLI uses.
 
@@ -101,7 +206,7 @@ cp prd.json.example prd.json
 ### 3. Run Ralph
 
 ```bash
-./scripts/ralph/ralph.sh [max_iterations]
+./ralph.sh [max_iterations]
 ```
 
 Default is 10 iterations.
@@ -115,6 +220,31 @@ Ralph will:
 6. Update `prd.json` to mark story as `passes: true`
 7. Append learnings to `progress.txt`
 8. Repeat until all stories pass or max iterations reached
+
+## Files Installed by Setup
+
+When you run `setup-ralph.sh`, these files are added to your project:
+
+```
+your-project/
+├─ ralph.sh                     # Main execution loop
+├─ agent.yaml                   # Agent configuration
+├─ prd.json                     # Your project requirements
+├─ progress.txt                 # Iteration log (auto-generated)
+├─ AGENTS.md                    # Pattern documentation
+├─ .last-branch                 # Branch tracking (auto-generated)
+├─ system_instructions/         # Agent prompts
+│  ├─ system_instructions.md
+│  └─ system_instructions_codex.md
+├─ skills/                      # Optional skills library
+│  ├─ prd/
+│  └─ ralph/
+└─ archive/                     # Previous run backups
+```
+
+**Git Tracking:**
+- ✓ Commit: `ralph.sh`, `agent.yaml`, `prd.json`, `AGENTS.md`, `system_instructions/`, `skills/`
+- ✗ Ignore: `progress.txt`, `.last-branch`, `archive/` (automatically added to .gitignore)
 
 ## Key Files
 

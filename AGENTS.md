@@ -4,9 +4,27 @@
 
 Ralph is an autonomous AI agent loop that runs AI coding agents (Claude Code or Codex) repeatedly until all PRD items are complete. Each iteration is a fresh agent instance with clean context.
 
+## Installation
+
+```bash
+# Global installation (recommended)
+./install.sh
+# Then from anywhere: ralph-setup /path/to/project
+
+# Or direct installation
+./setup-ralph.sh /path/to/your/project
+
+# Or manually copy files
+cp ralph.sh agent.yaml /path/to/project/
+cp -r system_instructions /path/to/project/
+```
+
 ## Commands
 
 ```bash
+# Run the setup script
+./setup-ralph.sh /path/to/project
+
 # Run the flowchart dev server
 cd flowchart && npm run dev
 
@@ -19,6 +37,7 @@ cd flowchart && npm run build
 
 ## Key Files
 
+- `setup-ralph.sh` - Automated installation script for any project
 - `ralph.sh` - The bash loop that spawns fresh agent instances
 - `agent.yaml` - Configuration for primary/fallback agent selection
 - `system_instructions/system_instructions.md` - Instructions for Claude Code
