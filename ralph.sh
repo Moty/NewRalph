@@ -261,7 +261,7 @@ run_agent() {
       if [ "$TOOL_APPROVAL" = "allow-all" ]; then
         TOOL_FLAGS+=("--allow-all-tools")
         # Add deny-tools if specified
-        local DENY_TOOLS=$(get_copilot_deny_tools)
+        local DENY_TOOLS="$(get_copilot_deny_tools)"
         if [ -n "$DENY_TOOLS" ]; then
           while IFS= read -r tool; do
             [ -n "$tool" ] && TOOL_FLAGS+=("--deny-tool" "$tool")
