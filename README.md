@@ -403,6 +403,23 @@ When an agent implements a UI story, it will:
 
 This ensures UI changes are not just syntactically correct, but actually work from a user's perspective.
 
+**Tips for effective browser verification:**
+- **Start your dev server first**: Use async mode or background processes (`npm run dev &`)
+- **Wait for server to be ready**: Add a short sleep after starting the server
+- **Use browser_snapshot for debugging**: It shows the page's accessibility tree, useful for finding element selectors
+- **Take screenshots of working features**: Documents the completion for your progress log
+- **Test interactions, not just rendering**: Click buttons, fill forms, verify state changes
+- **Check for console errors**: Use browser tools to ensure no JavaScript errors
+
+**Example workflow in progress.txt:**
+```
+Started dev server on port 3000
+Used browser_navigate to open http://localhost:3000/dashboard
+Verified new priority filter dropdown renders correctly
+Clicked "High Priority" filter and confirmed only high-priority tasks displayed
+Took screenshot showing the working filter
+```
+
 ### Stop Condition
 
 When all stories have `passes: true`, Ralph outputs `<promise>COMPLETE</promise>` and the loop exits.
@@ -421,6 +438,47 @@ cat progress.txt
 # Check git history
 git log --oneline -10
 ```
+
+### Troubleshooting Browser Verification
+
+If browser verification fails during an iteration:
+
+**Server won't start:**
+```bash
+# Check if port is already in use
+lsof -i :3000
+
+# Kill existing process if needed
+kill $(lsof -t -i:3000)
+
+# Try a different port
+PORT=3001 npm run dev
+```
+
+**Page won't load:**
+```bash
+# Verify server is running
+curl http://localhost:3000
+
+# Check server logs for errors
+# (Look at the process output where you started the dev server)
+
+# Wait longer for server startup
+sleep 10  # instead of sleep 5
+```
+
+**Elements not found:**
+- Use `browser_snapshot` to see the page's accessibility tree
+- Check element selectors match what's actually rendered
+- Ensure JavaScript has finished loading (add small delay)
+- Look for elements by aria-label, role, or visible text
+
+**Screenshots show errors:**
+- Check browser console for JavaScript errors
+- Verify all dependencies are installed
+- Check that environment variables are set correctly
+- Review server logs for API errors
+
 
 ## Customizing System Instructions
 

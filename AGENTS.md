@@ -68,3 +68,40 @@ npm run dev
 - Stories should be small enough to complete in one context window
 - Always update AGENTS.md with discovered patterns for future iterations
 - Agent selection is configured in `agent.yaml` with optional fallback support
+
+## Browser Verification Best Practices
+
+When implementing UI stories, agents should follow these patterns:
+
+### Starting Dev Servers
+- Use async mode or background processes: `npm run dev &` or `yarn dev &`
+- Add appropriate wait time after starting (usually 5-10 seconds)
+- Check server is ready before navigation: `curl http://localhost:3000 || sleep 5`
+
+### Effective Browser Testing
+- **Use browser_snapshot first**: Shows the page's accessibility tree for debugging
+- **Navigate to the specific page**: Use exact URLs (e.g., `http://localhost:3000/dashboard`)
+- **Interact with real user flows**: Click buttons, fill forms, test the actual feature
+- **Verify state changes**: After interactions, confirm the UI updated correctly
+- **Take screenshots**: Document working features in your progress log
+
+### Common Patterns
+```bash
+# Start dev server
+npm run dev &
+sleep 5
+
+# Navigate and test
+browser_navigate http://localhost:3000/feature
+browser_snapshot  # Verify page loaded
+browser_click "Submit button"
+browser_snapshot  # Verify result
+browser_take_screenshot feature-working.png
+```
+
+### What NOT to Do
+- Don't skip browser verification for UI stories - it catches visual bugs
+- Don't just check the page loads - actually test the feature works
+- Don't forget to verify error states and edge cases
+- Don't proceed if browser shows errors or unexpected behavior
+
