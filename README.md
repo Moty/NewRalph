@@ -2,7 +2,7 @@
 
 ![Ralph](ralph.webp)
 
-Ralph is an autonomous AI agent loop that runs [Amp](https://ampcode.com) repeatedly until all PRD items are complete. Each iteration is a fresh Amp instance with clean context. Memory persists via git history, `progress.txt`, and `prd.json`.
+Ralph is an autonomous AI agent loop that runs AI coding agents (Claude Code or Codex) repeatedly until all PRD items are complete. Each iteration is a fresh agent instance with clean context. Memory persists via git history, `progress.txt`, and `prd.json`.
 
 Based on [Geoffrey Huntley's Ralph pattern](https://ghuntley.com/ralph/).
 
@@ -10,8 +10,9 @@ Based on [Geoffrey Huntley's Ralph pattern](https://ghuntley.com/ralph/).
 
 ## Prerequisites
 
-- [Amp CLI](https://ampcode.com) installed and authenticated
+- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) and/or [Codex CLI](https://github.com/openai/codex) installed and authenticated
 - `jq` installed (`brew install jq` on macOS)
+- `yq` installed (`brew install yq` on macOS)
 - A git repository for your project
 
 ## Setup
@@ -24,30 +25,26 @@ Copy the ralph files into your project:
 # From your project root
 mkdir -p scripts/ralph
 cp /path/to/ralph/ralph.sh scripts/ralph/
-cp /path/to/ralph/prompt.md scripts/ralph/
+cp -r /path/to/ralph/system_instructions scripts/ralph/
+cp /path/to/ralph/agent.yaml scripts/ralph/
 chmod +x scripts/ralph/ralph.sh
 ```
 
 ### Option 2: Install skills globally
 
-Copy the skills to your Amp config for use across all projects:
+Copy the skills to your preferred agent's config directory for use across all projects.
 
-```bash
-cp -r skills/prd ~/.config/amp/skills/
-cp -r skills/ralph ~/.config/amp/skills/
+### Configure the agent
+
+Edit `agent.yaml` to select your primary and fallback agents:
+
+```yaml
+agent:
+  primary: claude-code   # Options: claude-code, codex
+  fallback: codex        # Optional fallback if primary fails
 ```
 
-### Configure Amp auto-handoff (recommended)
-
-Add to `~/.config/amp/settings.json`:
-
-```json
-{
-  "amp.experimental.autoHandoff": { "context": 90 }
-}
-```
-
-This enables automatic handoff when context fills up, allowing Ralph to handle large stories that exceed a single context window.
+The script will use the primary agent and automatically fall back to the secondary if the primary fails.
 
 ## Workflow
 
@@ -93,11 +90,15 @@ Ralph will:
 
 | File | Purpose |
 |------|---------|
-| `ralph.sh` | The bash loop that spawns fresh Amp instances |
-| `prompt.md` | Instructions given to each Amp instance |
+| `ralph.sh` | The bash loop that spawns fresh agent instances |
+| `agent.yaml` | Configuration for primary/fallback agent selection |
+| `system_instructions/` | Agent-specific instruction files |
+| `system_instructions/system_instructions.md` | Instructions for Claude Code |
+| `system_instructions/system_instructions_codex.md` | Instructions for Codex |
 | `prd.json` | User stories with `passes` status (the task list) |
 | `prd.json.example` | Example PRD format for reference |
 | `progress.txt` | Append-only learnings for future iterations |
+| `prompt.md` | Legacy prompt file (optional) |
 | `skills/prd/` | Skill for generating PRDs |
 | `skills/ralph/` | Skill for converting PRDs to JSON |
 | `flowchart/` | Interactive visualization of how Ralph works |
@@ -120,7 +121,7 @@ npm run dev
 
 ### Each Iteration = Fresh Context
 
-Each iteration spawns a **new Amp instance** with clean context. The only memory between iterations is:
+Each iteration spawns a **new agent instance** (Claude Code or Codex) with clean context. The only memory between iterations is:
 - Git history (commits from previous iterations)
 - `progress.txt` (learnings and context)
 - `prd.json` (which stories are done)
@@ -142,7 +143,7 @@ Too big (split these):
 
 ### AGENTS.md Updates Are Critical
 
-After each iteration, Ralph updates the relevant `AGENTS.md` files with learnings. This is key because Amp automatically reads these files, so future iterations (and future human developers) benefit from discovered patterns, gotchas, and conventions.
+After each iteration, Ralph updates the relevant `AGENTS.md` files with learnings. This is key because the agent automatically reads these files, so future iterations (and future human developers) benefit from discovered patterns, gotchas, and conventions.
 
 Examples of what to add to AGENTS.md:
 - Patterns discovered ("this codebase uses X for Y")
@@ -179,12 +180,16 @@ cat progress.txt
 git log --oneline -10
 ```
 
-## Customizing prompt.md
+## Customizing System Instructions
 
-Edit `prompt.md` to customize Ralph's behavior for your project:
-- Add project-specific quality check commands
-- Include codebase conventions
-- Add common gotchas for your stack
+Edit the files in `system_instructions/` to customize agent behavior for your project:
+- `system_instructions.md` - Instructions for Claude Code
+- `system_instructions_codex.md` - Instructions for Codex
+
+You can add:
+- Project-specific quality check commands
+- Codebase conventions
+- Common gotchas for your stack
 
 ## Archiving
 
@@ -193,4 +198,5 @@ Ralph automatically archives previous runs when you start a new feature (differe
 ## References
 
 - [Geoffrey Huntley's Ralph article](https://ghuntley.com/ralph/)
-- [Amp documentation](https://ampcode.com/manual)
+- [Claude Code documentation](https://docs.anthropic.com/en/docs/claude-code)
+- [OpenAI Codex documentation](https://github.com/openai/codex)
