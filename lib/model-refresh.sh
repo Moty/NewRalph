@@ -24,6 +24,13 @@ DEFAULT_CODEX_MODELS='[
   "o4-mini"
 ]'
 
+DEFAULT_GEMINI_MODELS='[
+  "gemini-3-pro",
+  "gemini-3-flash",
+  "gemini-2.5-pro",
+  "gemini-2.5-flash"
+]'
+
 # Detect available Claude models
 detect_claude_models() {
   # For now, we use curated default lists
@@ -65,6 +72,23 @@ detect_codex_models() {
   # CLI is installed, return full curated list
   # This list is maintained and updated with each Ralph release
   echo "$DEFAULT_CODEX_MODELS"
+  return 0
+}
+
+# Detect available Gemini models
+detect_gemini_models() {
+  # Gemini CLI models: Auto (Gemini 3) and Auto (Gemini 2.5)
+  # gemini-3-pro, gemini-3-flash, gemini-2.5-pro, gemini-2.5-flash
+
+  # Check if Gemini CLI is available
+  if ! command -v gemini &>/dev/null; then
+    # CLI not installed, return minimal set
+    echo '["gemini-3-pro"]'
+    return 0
+  fi
+
+  # CLI is installed, return full curated list
+  echo "$DEFAULT_GEMINI_MODELS"
   return 0
 }
 
@@ -122,22 +146,26 @@ refresh_models() {
 
   local claude_models
   local codex_models
+  local gemini_models
 
   claude_models=$(detect_claude_models)
   codex_models=$(detect_codex_models)
+  gemini_models=$(detect_gemini_models)
 
   # Create cache JSON
   local cache_data
   cache_data=$(jq -n \
     --argjson claude "$claude_models" \
     --argjson codex "$codex_models" \
+    --argjson gemini "$gemini_models" \
     --arg timestamp "$(date +%s)" \
     --arg refreshed "$(date -u +"%Y-%m-%d %H:%M:%S UTC")" \
     '{
       timestamp: $timestamp | tonumber,
       refreshed: $refreshed,
       claude: $claude,
-      codex: $codex
+      codex: $codex,
+      gemini: $gemini
     }')
 
   # Write cache
@@ -174,6 +202,11 @@ get_codex_models() {
   get_models "$@" | jq -r '.codex[]' 2>/dev/null || echo "$DEFAULT_CODEX_MODELS" | jq -r '.[]'
 }
 
+# Get Gemini models only
+get_gemini_models() {
+  get_models "$@" | jq -r '.gemini[]' 2>/dev/null || echo "$DEFAULT_GEMINI_MODELS" | jq -r '.[]'
+}
+
 # Get cache info
 get_cache_info() {
   if [ -f "$MODELS_CACHE" ]; then
@@ -196,6 +229,9 @@ if [ "${BASH_SOURCE[0]}" -ef "$0" ]; then
       ;;
     codex)
       get_codex_models "$@"
+      ;;
+    gemini)
+      get_gemini_models "$@"
       ;;
     info)
       get_cache_info

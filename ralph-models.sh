@@ -158,6 +158,66 @@ show_codex_models() {
   echo ""
 }
 
+# Gemini models
+show_gemini_models() {
+  echo -e "${BLUE}Gemini${NC} (via gemini CLI)"
+  echo -e "  ${YELLOW}Current:${NC} $(yq '.gemini.model // "gemini-3-pro"' "$AGENT_CONFIG" 2>/dev/null)"
+  echo ""
+
+  # Get available models dynamically
+  if [ -f "$SCRIPT_DIR/lib/model-refresh.sh" ]; then
+    echo -e "  ${GREEN}Available models (auto-detected):${NC}"
+
+    # Get models and format them
+    local models
+    models=$(get_gemini_models 2>/dev/null)
+
+    if [ -n "$models" ]; then
+      while IFS= read -r model; do
+        # Annotate recommended models
+        case "$model" in
+          "gemini-3-pro")
+            echo -e "    • $model ${CYAN}(Gemini 3, powerful)${NC}"
+            ;;
+          "gemini-3-flash")
+            echo -e "    • $model ${CYAN}(Gemini 3, fast)${NC}"
+            ;;
+          "gemini-2.5-pro")
+            echo -e "    • $model ${CYAN}(Gemini 2.5, powerful)${NC}"
+            ;;
+          "gemini-2.5-flash")
+            echo -e "    • $model ${CYAN}(Gemini 2.5, fast)${NC}"
+            ;;
+          *)
+            echo "    • $model"
+            ;;
+        esac
+      done <<< "$models"
+    else
+      echo "    ${YELLOW}No models detected, showing defaults:${NC}"
+      echo "    • gemini-3-pro       (Gemini 3, powerful)"
+      echo "    • gemini-3-flash     (Gemini 3, fast)"
+      echo "    • gemini-2.5-pro     (Gemini 2.5, powerful)"
+      echo "    • gemini-2.5-flash   (Gemini 2.5, fast)"
+    fi
+  else
+    echo -e "  ${GREEN}Available models:${NC}"
+    echo "    • gemini-3-pro       (Gemini 3, powerful)"
+    echo "    • gemini-3-flash     (Gemini 3, fast)"
+    echo "    • gemini-2.5-pro     (Gemini 2.5, powerful)"
+    echo "    • gemini-2.5-flash   (Gemini 2.5, fast)"
+  fi
+  echo ""
+
+  if command -v gemini &>/dev/null; then
+    echo -e "  ${GREEN}CLI found:${NC} $(gemini --version 2>/dev/null || echo 'unknown version')"
+    echo -e "  ${CYAN}Tip:${NC} Run 'gemini' then /model to see all available models"
+  else
+    echo -e "  ${RED}CLI not found${NC} - install with 'npm install -g @anthropic/gemini-cli'"
+  fi
+  echo ""
+}
+
 # Current config
 show_current_config() {
   echo -e "${YELLOW}Current Configuration${NC} ($AGENT_CONFIG)"
@@ -186,6 +246,7 @@ for arg in "$@"; do
       echo "  all          Show all agents (default)"
       echo "  claude       Show Claude Code models only"
       echo "  codex        Show Codex models only"
+      echo "  gemini       Show Gemini models only"
       echo "  config       Show current configuration"
       echo ""
       echo "Options:"
@@ -193,7 +254,7 @@ for arg in "$@"; do
       echo "  --help, -h       Show this help message"
       exit 0
       ;;
-    claude|claude-code|codex|openai|config)
+    claude|claude-code|codex|openai|gemini|config)
       SHOW_MODE="$arg"
       ;;
   esac
@@ -222,6 +283,9 @@ case "${SHOW_MODE}" in
   codex|openai)
     show_codex_models
     ;;
+  gemini)
+    show_gemini_models
+    ;;
   config)
     show_current_config
     ;;
@@ -230,6 +294,9 @@ case "${SHOW_MODE}" in
     echo -e "${CYAN}───────────────────────────────────────────────────────────${NC}"
     echo ""
     show_codex_models
+    echo -e "${CYAN}───────────────────────────────────────────────────────────${NC}"
+    echo ""
+    show_gemini_models
     echo -e "${CYAN}───────────────────────────────────────────────────────────${NC}"
     echo ""
     show_current_config
