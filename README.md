@@ -78,6 +78,10 @@ Both methods will:
   - Authenticate: Run `copilot` and use `/login`
   - Verify: `copilot --version`
 
+- **Gemini CLI** (Google)
+  - Install: `npm install -g @anthropic/gemini-cli` or via pip
+  - Verify: `gemini --version`
+
 Ralph works with any of these agents and can use multiple with automatic fallback.
 
 ## Uninstallation
@@ -140,7 +144,7 @@ Edit `agent.yaml` to configure agents and models:
 
 ```yaml
 agent:
-  primary: claude-code   # Options: claude-code, codex, github-copilot
+  primary: claude-code   # Options: claude-code, codex, github-copilot, gemini
   fallback: codex        # Optional fallback if primary fails
 
 # Claude Code settings
@@ -148,7 +152,7 @@ claude-code:
   model: claude-sonnet-4-20250514  # or: claude-3-5-sonnet, claude-3-opus, etc.
   # flags: "--verbose"  # Uncomment for debugging
 
-# Codex settings  
+# Codex settings
 codex:
   model: codex-5.2       # latest Codex; use o1/gpt-4o if unavailable
   approval-mode: full-auto
@@ -160,6 +164,11 @@ github-copilot:
   # deny-tools:             # Optional: specific tools to deny
   #   - "shell (rm)"
   #   - "fetch"
+  # flags: ""
+
+# Gemini settings (Google AI)
+gemini:
+  model: gemini-2.5-pro  # Options: gemini-2.5-pro, gemini-2.5-flash, gemini-2.0-flash
   # flags: ""
 ```
 
@@ -224,17 +233,35 @@ The `create-prd.sh` script automates the entire PRD creation process:
 ```
 
 This script will:
-1. Load the PRD skill and ask clarifying questions
-2. Generate a structured PRD saved to `tasks/prd-draft.md`
-3. Automatically convert it to `prd.json` in Ralph's format
-4. Ensure stories are appropriately sized for single iterations
-5. Warn before overwriting existing `prd.json` files
+1. **Auto-detect project type** (greenfield vs brownfield)
+2. Load the appropriate PRD skill and ask clarifying questions
+3. Generate a structured PRD saved to `tasks/prd-draft.md`
+4. Automatically convert it to `prd.json` in Ralph's format
+5. Ensure stories are appropriately sized for single iterations
+6. For brownfield projects: gather existing codebase context automatically
 
 **Options:**
 ```bash
-./create-prd.sh --help                    # Show help and usage information
+./create-prd.sh --help                     # Show help and usage information
 ./create-prd.sh --draft-only "description" # Generate PRD markdown only (skip JSON conversion)
+./create-prd.sh --greenfield "description" # Force greenfield mode (new project from scratch)
+./create-prd.sh --brownfield "description" # Force brownfield mode (adding to existing codebase)
+./create-prd.sh --model claude-opus "desc" # Specify AI model for PRD generation
 ```
+
+**Model Selection for PRD Generation:**
+
+| Model | Best For |
+|-------|----------|
+| `claude-opus` | Technical PRDs with detailed code specs (Claude Opus 4.5) |
+| `claude-sonnet` | Balanced quality/cost for most PRDs (Claude Sonnet 4.5) |
+| `gemini-pro` | Large codebase analysis with 1M token context |
+| `gpt-codex` | OpenAI Codex models |
+
+The script automatically recommends the best model based on project type:
+- **Greenfield** → `claude-sonnet` (best balance for new architecture)
+- **Small brownfield** → `claude-opus` (best technical accuracy)
+- **Large brownfield** → `gemini-pro` (1M token context for full codebase)
 
 **Alternative: Manual step-by-step approach**
 
@@ -336,7 +363,9 @@ your-project/
 | `prd.json.example` | Example PRD format for reference |
 | `progress.txt` | Append-only learnings for future iterations |
 | `prompt.md` | Legacy prompt file (optional) |
-| `skills/prd/` | Skill for generating PRDs |
+| `skills/prd/SKILL.md` | General-purpose PRD skill |
+| `skills/prd/GREENFIELD.md` | PRD skill for new projects (architecture, tech selection) |
+| `skills/prd/BROWNFIELD.md` | PRD skill for existing codebases (integration, patterns) |
 | `skills/ralph/` | Skill for converting PRDs to JSON |
 | `flowchart/` | Interactive visualization of how Ralph works |
 

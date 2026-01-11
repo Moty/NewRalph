@@ -208,6 +208,7 @@ get_codex_approval_mode() { yq '.codex.approval-mode // "full-auto"' "$AGENT_CON
 get_codex_sandbox() { yq '.codex.sandbox // "full-access"' "$AGENT_CONFIG"; }
 get_copilot_tool_approval() { yq '.github-copilot.tool-approval // "allow-all"' "$AGENT_CONFIG"; }
 get_copilot_deny_tools() { yq '.github-copilot.deny-tools[]? // ""' "$AGENT_CONFIG"; }
+get_gemini_model() { yq '.gemini.model // "gemini-2.5-pro"' "$AGENT_CONFIG"; }
 
 CLAUDE_CMD=""
 if command -v claude &>/dev/null; then
@@ -298,6 +299,21 @@ run_agent() {
         run_with_timeout "$AGENT_TIMEOUT" copilot -p "$PROMPT" "${TOOL_FLAGS[@]}"
       else
         copilot -p "$PROMPT" "${TOOL_FLAGS[@]}"
+      fi
+      ;;
+    gemini)
+      local MODEL=$(get_gemini_model)
+      echo -e "→ Running ${CYAN}Gemini${NC} (model: $MODEL, timeout: $TIMEOUT_DISPLAY)"
+      command -v gemini >/dev/null 2>&1 || { echo -e "${RED}Error: Gemini CLI not found${NC}"; echo -e "${YELLOW}Install: npm install -g @anthropic/gemini-cli or pip install google-generativeai${NC}"; return 1; }
+
+      # Construct the prompt for Gemini
+      local PROMPT="Read prd.json and implement the next incomplete story. Follow the instructions in system_instructions/system_instructions.md exactly. When all stories are complete, output: RALPH_COMPLETE"
+
+      # Run with timeout if run_with_timeout function exists and timeout > 0
+      if type run_with_timeout >/dev/null 2>&1 && [ "$AGENT_TIMEOUT" -gt 0 ] 2>/dev/null; then
+        run_with_timeout "$AGENT_TIMEOUT" gemini --model "$MODEL" --yolo "$PROMPT"
+      else
+        gemini --model "$MODEL" --yolo "$PROMPT"
       fi
       ;;
     *) echo -e "${RED}Unknown agent: $AGENT${NC}"; exit 1 ;;

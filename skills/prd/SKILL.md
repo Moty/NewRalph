@@ -9,6 +9,24 @@ Create detailed Product Requirements Documents that are clear, actionable, and s
 
 ---
 
+## Specialized PRD Skills
+
+This is the **general-purpose PRD skill**. For better results, use the specialized versions:
+
+- **GREENFIELD.md** - For new projects built from scratch
+  - Includes technology selection and architecture decisions
+  - Covers project scaffolding and initial setup
+  - Best with: Claude Sonnet (balanced), Gemini Pro (if complex)
+
+- **BROWNFIELD.md** - For adding features to existing codebases
+  - Focuses on integration with existing patterns
+  - Documents compatibility and migration considerations
+  - Best with: Claude Opus (accuracy), Gemini Pro (large codebases)
+
+The `create-prd.sh` script automatically selects the right skill based on project detection.
+
+---
+
 ## The Job
 
 1. Receive a feature description from the user
