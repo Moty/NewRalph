@@ -1,6 +1,6 @@
 #!/bin/bash
 # Ralph Wiggum - Long-running AI agent loop (agent-agnostic)
-# Usage: ./ralph.sh [max_iterations] [--no-sleep-prevent] [--verbose] [--timeout SECONDS]
+# Usage: ./ralph.sh [max_iterations] [--no-sleep-prevent] [--verbose] [--timeout SECONDS] [--no-timeout]
 
 set -e
 
@@ -9,7 +9,7 @@ set -e
 MAX_ITERATIONS=${1:-10}
 PREVENT_SLEEP=true
 export VERBOSE=false
-AGENT_TIMEOUT=3600  # Default 1 hour timeout per agent iteration
+AGENT_TIMEOUT=7200  # Default 2 hour timeout per agent iteration (0 = no timeout)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Check for flags
@@ -20,6 +20,9 @@ for arg in "$@"; do
       ;;
     --verbose|-v)
       export VERBOSE=true
+      ;;
+    --no-timeout)
+      AGENT_TIMEOUT=0
       ;;
     --timeout)
       shift
@@ -214,17 +217,19 @@ fi
 
 run_agent() {
   local AGENT="$1"
+  local TIMEOUT_DISPLAY="no timeout"
+  [ "$AGENT_TIMEOUT" -gt 0 ] 2>/dev/null && TIMEOUT_DISPLAY="${AGENT_TIMEOUT}s"
 
-  log_info "Starting agent: $AGENT (timeout: ${AGENT_TIMEOUT}s)" 2>/dev/null || true
+  log_info "Starting agent: $AGENT (timeout: $TIMEOUT_DISPLAY)" 2>/dev/null || true
 
   case "$AGENT" in
     claude-code)
       local MODEL=$(get_claude_model)
-      echo -e "→ Running ${CYAN}Claude Code${NC} (model: $MODEL, timeout: ${AGENT_TIMEOUT}s)"
+      echo -e "→ Running ${CYAN}Claude Code${NC} (model: $MODEL, timeout: $TIMEOUT_DISPLAY)"
       [ -z "$CLAUDE_CMD" ] && { echo -e "${RED}Error: Claude CLI not found${NC}"; return 1; }
 
-      # Run with timeout if run_with_timeout function exists
-      if type run_with_timeout >/dev/null 2>&1; then
+      # Run with timeout if run_with_timeout function exists and timeout > 0
+      if type run_with_timeout >/dev/null 2>&1 && [ "$AGENT_TIMEOUT" -gt 0 ] 2>/dev/null; then
         run_with_timeout "$AGENT_TIMEOUT" "$CLAUDE_CMD" --print --dangerously-skip-permissions --model "$MODEL" \
           --system-prompt "$SCRIPT_DIR/system_instructions/system_instructions.md" \
           "Read prd.json and implement the next incomplete story. Follow the system instructions exactly."
@@ -237,13 +242,13 @@ run_agent() {
     codex)
       local MODEL=$(get_codex_model)
       local APPROVAL=$(get_codex_approval_mode)
-      echo -e "→ Running ${CYAN}Codex${NC} (model: $MODEL, approval: $APPROVAL, timeout: ${AGENT_TIMEOUT}s)"
+      echo -e "→ Running ${CYAN}Codex${NC} (model: $MODEL, approval: $APPROVAL, timeout: $TIMEOUT_DISPLAY)"
       local APPROVAL_FLAG=""
       [ "$APPROVAL" = "full-auto" ] && APPROVAL_FLAG="--full-auto"
       [ "$APPROVAL" = "danger" ] && APPROVAL_FLAG="--dangerously-bypass-approvals-and-sandbox"
 
-      # Run with timeout if run_with_timeout function exists
-      if type run_with_timeout >/dev/null 2>&1; then
+      # Run with timeout if run_with_timeout function exists and timeout > 0
+      if type run_with_timeout >/dev/null 2>&1 && [ "$AGENT_TIMEOUT" -gt 0 ] 2>/dev/null; then
         run_with_timeout "$AGENT_TIMEOUT" codex exec $APPROVAL_FLAG -m "$MODEL" --skip-git-repo-check \
           "Read prd.json and implement the next incomplete story. Follow system_instructions/system_instructions_codex.md. When all stories complete, output: RALPH_COMPLETE"
       else
@@ -253,7 +258,7 @@ run_agent() {
       ;;
     github-copilot)
       local TOOL_APPROVAL=$(get_copilot_tool_approval)
-      echo -e "→ Running ${CYAN}GitHub Copilot${NC} (tool-approval: $TOOL_APPROVAL, timeout: ${AGENT_TIMEOUT}s)"
+      echo -e "→ Running ${CYAN}GitHub Copilot${NC} (tool-approval: $TOOL_APPROVAL, timeout: $TIMEOUT_DISPLAY)"
       command -v copilot >/dev/null 2>&1 || { echo -e "${RED}Error: Copilot CLI not found${NC}"; return 1; }
 
       # Build tool approval flags as an array for proper quoting
@@ -272,8 +277,8 @@ run_agent() {
       # Construct the prompt
       local PROMPT="Read prd.json and implement the next incomplete story. Follow the instructions in system_instructions/system_instructions_copilot.md exactly. When all stories are complete, output: RALPH_COMPLETE"
 
-      # Run with timeout if run_with_timeout function exists
-      if type run_with_timeout >/dev/null 2>&1; then
+      # Run with timeout if run_with_timeout function exists and timeout > 0
+      if type run_with_timeout >/dev/null 2>&1 && [ "$AGENT_TIMEOUT" -gt 0 ] 2>/dev/null; then
         run_with_timeout "$AGENT_TIMEOUT" copilot -p "$PROMPT" "${TOOL_FLAGS[@]}"
       else
         copilot -p "$PROMPT" "${TOOL_FLAGS[@]}"
@@ -286,7 +291,7 @@ run_agent() {
   if [ $exit_code -eq 124 ]; then
     log_error "Agent timed out after ${AGENT_TIMEOUT}s" 2>/dev/null || true
     echo -e "${RED}Error: Agent execution timed out after ${AGENT_TIMEOUT}s${NC}"
-    echo -e "${YELLOW}Try increasing timeout with: --timeout <seconds>${NC}"
+    echo -e "${YELLOW}Try increasing timeout with: --timeout <seconds> or --no-timeout${NC}"
   fi
 
   return $exit_code
@@ -370,7 +375,11 @@ echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━
 echo -e "Primary agent: ${CYAN}$PRIMARY_AGENT${NC}"
 [ -n "$FALLBACK_AGENT" ] && echo -e "Fallback agent: ${CYAN}$FALLBACK_AGENT${NC}"
 echo -e "Max iterations: ${YELLOW}$MAX_ITERATIONS${NC}"
-echo -e "Agent timeout: ${YELLOW}${AGENT_TIMEOUT}s${NC}"
+if [ "$AGENT_TIMEOUT" -gt 0 ] 2>/dev/null; then
+  echo -e "Agent timeout: ${YELLOW}${AGENT_TIMEOUT}s${NC}"
+else
+  echo -e "Agent timeout: ${YELLOW}no timeout${NC}"
+fi
 [ "$VERBOSE" = true ] && echo -e "Verbose mode: ${GREEN}enabled${NC}"
 echo -e "Log file: ${BLUE}$LOG_FILE${NC}"
 echo -e "Started at: ${BLUE}$(date '+%Y-%m-%d %H:%M:%S')${NC}"
