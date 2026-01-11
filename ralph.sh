@@ -1,6 +1,7 @@
 #!/bin/bash
 # Ralph Wiggum - Long-running AI agent loop (agent-agnostic)
-# Usage: ./ralph.sh [max_iterations] [--no-sleep-prevent] [--verbose] [--timeout SECONDS] [--no-timeout]
+# Usage: ./ralph.sh [max_iterations] [--no-sleep-prevent] [--verbose] [--timeout SECONDS] [--no-timeout] [--greenfield] [--brownfield]
+# Agent priority: GitHub Copilot CLI → Claude Code → Gemini → Codex
 
 set -e
 
@@ -11,6 +12,7 @@ PREVENT_SLEEP=true
 export VERBOSE=false
 AGENT_TIMEOUT=7200  # Default 2 hour timeout per agent iteration (0 = no timeout)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_TYPE=""  # greenfield, brownfield, or auto-detected
 
 # Check for flags
 for arg in "$@"; do
@@ -27,6 +29,12 @@ for arg in "$@"; do
     --timeout)
       shift
       AGENT_TIMEOUT="$1"
+      ;;
+    --greenfield)
+      PROJECT_TYPE="greenfield"
+      ;;
+    --brownfield)
+      PROJECT_TYPE="brownfield"
       ;;
   esac
 done
@@ -198,9 +206,149 @@ start_sleep_prevention() {
   fi
 }
 
+# ---- Project Type Detection ---------------------------------------
+
+detect_project_type() {
+  local indicators=0
+
+  # Check for package managers / project files
+  if [ -f "package.json" ] || [ -f "requirements.txt" ] || [ -f "Cargo.toml" ] || \
+     [ -f "go.mod" ] || [ -f "pom.xml" ] || [ -f "build.gradle" ] || [ -f "Gemfile" ]; then
+    indicators=$((indicators + 2))
+  fi
+
+  # Check for source directories
+  if [ -d "src" ] || [ -d "lib" ] || [ -d "app" ] || [ -d "pkg" ]; then
+    indicators=$((indicators + 2))
+  fi
+
+  # Check git history
+  if git rev-parse --git-dir >/dev/null 2>&1; then
+    local commit_count=$(git rev-list --count HEAD 2>/dev/null || echo "0")
+    if [ "$commit_count" -gt 10 ]; then
+      indicators=$((indicators + 2))
+    elif [ "$commit_count" -gt 3 ]; then
+      indicators=$((indicators + 1))
+    fi
+  fi
+
+  # Check for existing tests
+  if [ -d "tests" ] || [ -d "test" ] || [ -d "__tests__" ] || [ -d "spec" ]; then
+    indicators=$((indicators + 1))
+  fi
+
+  # Check for config files indicating established project
+  if [ -f ".eslintrc.js" ] || [ -f "tsconfig.json" ] || [ -f "jest.config.js" ] || \
+     [ -f ".prettierrc" ] || [ -f "webpack.config.js" ] || [ -f "vite.config.ts" ]; then
+    indicators=$((indicators + 1))
+  fi
+
+  # Threshold: 3+ indicators = brownfield
+  if [ $indicators -ge 3 ]; then
+    echo "brownfield"
+  else
+    echo "greenfield"
+  fi
+}
+
+# Auto-detect project type if not specified
+if [ -z "$PROJECT_TYPE" ]; then
+  PROJECT_TYPE=$(detect_project_type)
+  echo -e "${CYAN}Auto-detected project type: ${YELLOW}$PROJECT_TYPE${NC}"
+else
+  echo -e "${GREEN}Project type: ${YELLOW}$PROJECT_TYPE${NC}"
+fi
+
+# ---- Auto-detect Agent (if not configured) ------------------------
+# Priority: GitHub Copilot CLI → Claude Code → Gemini → Codex
+
+auto_detect_agent() {
+  # Priority 1: GitHub Copilot CLI
+  if command -v copilot &>/dev/null; then
+    echo "github-copilot"
+    return 0
+  fi
+  
+  # Priority 2: Claude Code
+  if command -v claude &>/dev/null; then
+    echo "claude-code"
+    return 0
+  fi
+  if [ -x "$HOME/.local/bin/claude" ]; then
+    echo "claude-code"
+    return 0
+  fi
+  
+  # Priority 3: Gemini
+  if command -v gemini &>/dev/null; then
+    echo "gemini"
+    return 0
+  fi
+  
+  # Priority 4: Codex
+  if command -v codex &>/dev/null; then
+    echo "codex"
+    return 0
+  fi
+  
+  # No agent found
+  echo ""
+  return 1
+}
+
+check_agent_available() {
+  local agent="$1"
+  case "$agent" in
+    github-copilot)
+      command -v copilot &>/dev/null
+      ;;
+    claude-code)
+      command -v claude &>/dev/null || [ -x "$HOME/.local/bin/claude" ]
+      ;;
+    gemini)
+      command -v gemini &>/dev/null
+      ;;
+    codex)
+      command -v codex &>/dev/null
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 # ---- Agent Configuration ------------------------------------------
 
-get_agent() { yq '.agent.primary' "$AGENT_CONFIG"; }
+get_agent() {
+  local configured_agent=$(yq '.agent.primary' "$AGENT_CONFIG" 2>/dev/null)
+  
+  # If agent is configured and available, use it
+  if [ -n "$configured_agent" ] && [ "$configured_agent" != "null" ] && [ "$configured_agent" != "auto" ]; then
+    if check_agent_available "$configured_agent"; then
+      echo "$configured_agent"
+      return 0
+    else
+      echo -e "${YELLOW}Warning: Configured agent '$configured_agent' not available, auto-detecting...${NC}" >&2
+    fi
+  fi
+  
+  # Auto-detect agent based on priority
+  local detected=$(auto_detect_agent)
+  if [ -n "$detected" ]; then
+    echo "$detected"
+    return 0
+  fi
+  
+  # No agent found
+  echo -e "${RED}Error: No AI agent found.${NC}" >&2
+  echo "Please install one of the following:" >&2
+  echo "  - GitHub Copilot CLI: https://github.com/github/gh-copilot" >&2
+  echo "  - Claude Code: https://docs.anthropic.com/claude/docs/cli" >&2
+  echo "  - Gemini CLI: npm install -g @google/gemini-cli" >&2
+  echo "  - Codex: npm install -g @openai/codex" >&2
+  return 1
+}
+
 get_fallback_agent() { yq '.agent.fallback // ""' "$AGENT_CONFIG"; }
 get_claude_model() { yq '.claude-code.model // "claude-sonnet-4-20250514"' "$AGENT_CONFIG"; }
 get_codex_model() { yq '.codex.model // "gpt-4o"' "$AGENT_CONFIG"; }
@@ -398,12 +546,17 @@ echo ""
 # ---- Main loop ----------------------------------------------------
 
 PRIMARY_AGENT=$(get_agent)
+if [ -z "$PRIMARY_AGENT" ]; then
+  echo -e "${RED}Failed to detect or configure an agent. Exiting.${NC}"
+  exit 1
+fi
 FALLBACK_AGENT=$(get_fallback_agent)
 
 echo ""
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${GREEN}  🐻 Starting Ralph${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "Project type: ${YELLOW}$PROJECT_TYPE${NC}"
 echo -e "Primary agent: ${CYAN}$PRIMARY_AGENT${NC}"
 [ -n "$FALLBACK_AGENT" ] && echo -e "Fallback agent: ${CYAN}$FALLBACK_AGENT${NC}"
 echo -e "Max iterations: ${YELLOW}$MAX_ITERATIONS${NC}"

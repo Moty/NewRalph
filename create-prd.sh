@@ -208,33 +208,87 @@ echo -e "${GREEN}Project type: ${YELLOW}$PROJECT_TYPE${NC}"
 AGENT=""
 AGENT_NAME=""
 
-# Priority 1: GitHub Copilot CLI
-if command -v copilot &>/dev/null; then
-  AGENT="copilot"
-  AGENT_NAME="GitHub Copilot CLI"
-# Priority 2: Claude Code
-elif command -v claude &>/dev/null; then
-  AGENT="claude"
-  AGENT_NAME="Claude Code"
-elif [ -x "$HOME/.local/bin/claude" ]; then
-  AGENT="$HOME/.local/bin/claude"
-  AGENT_NAME="Claude Code"
-# Priority 3: Gemini
-elif command -v gemini &>/dev/null; then
-  AGENT="gemini"
-  AGENT_NAME="Gemini"
-# Priority 4: Codex
-elif command -v codex &>/dev/null; then
-  AGENT="codex"
-  AGENT_NAME="Codex"
-else
-  echo -e "${RED}Error: No AI agent found.${NC}"
-  echo "Please install one of the following:"
-  echo "  - GitHub Copilot CLI: https://github.com/github/gh-copilot"
-  echo "  - Claude Code: https://docs.anthropic.com/claude/docs/cli"
-  echo "  - Gemini CLI: npm install -g @anthropic/gemini-cli"
-  echo "  - Codex: npm install -g @openai/codex"
-  exit 1
+# If a model was specified, infer which agent to use
+infer_agent_from_model() {
+  case "$1" in
+    gemini-*)
+      if command -v gemini &>/dev/null; then
+        AGENT="gemini"
+        AGENT_NAME="Gemini"
+        return 0
+      else
+        echo -e "${RED}Error: Gemini CLI not installed but gemini model specified${NC}"
+        echo "Install: npm install -g @google/gemini-cli"
+        exit 1
+      fi
+      ;;
+    claude-*)
+      if command -v claude &>/dev/null; then
+        AGENT="claude"
+        AGENT_NAME="Claude Code"
+        return 0
+      elif [ -x "$HOME/.local/bin/claude" ]; then
+        AGENT="$HOME/.local/bin/claude"
+        AGENT_NAME="Claude Code"
+        return 0
+      else
+        echo -e "${RED}Error: Claude CLI not installed but claude model specified${NC}"
+        echo "Install: https://docs.anthropic.com/claude/docs/cli"
+        exit 1
+      fi
+      ;;
+    gpt-*|codex)
+      if command -v codex &>/dev/null; then
+        AGENT="codex"
+        AGENT_NAME="Codex"
+        return 0
+      else
+        echo -e "${RED}Error: Codex CLI not installed but gpt/codex model specified${NC}"
+        echo "Install: npm install -g @openai/codex"
+        exit 1
+      fi
+      ;;
+  esac
+  return 1
+}
+
+# If model was specified via --model, try to infer agent from it
+if [ -n "$PREFERRED_MODEL" ]; then
+  if infer_agent_from_model "$PREFERRED_MODEL"; then
+    echo -e "${CYAN}Model specified: ${YELLOW}$PREFERRED_MODEL${NC} → using ${CYAN}$AGENT_NAME${NC}"
+  fi
+fi
+
+# If agent wasn't set by model inference, auto-detect by priority
+if [ -z "$AGENT" ]; then
+  # Priority 1: GitHub Copilot CLI
+  if command -v copilot &>/dev/null; then
+    AGENT="copilot"
+    AGENT_NAME="GitHub Copilot CLI"
+  # Priority 2: Claude Code
+  elif command -v claude &>/dev/null; then
+    AGENT="claude"
+    AGENT_NAME="Claude Code"
+  elif [ -x "$HOME/.local/bin/claude" ]; then
+    AGENT="$HOME/.local/bin/claude"
+    AGENT_NAME="Claude Code"
+  # Priority 3: Gemini
+  elif command -v gemini &>/dev/null; then
+    AGENT="gemini"
+    AGENT_NAME="Gemini"
+  # Priority 4: Codex
+  elif command -v codex &>/dev/null; then
+    AGENT="codex"
+    AGENT_NAME="Codex"
+  else
+    echo -e "${RED}Error: No AI agent found.${NC}"
+    echo "Please install one of the following:"
+    echo "  - GitHub Copilot CLI: https://github.com/github/gh-copilot"
+    echo "  - Claude Code: https://docs.anthropic.com/claude/docs/cli"
+    echo "  - Gemini CLI: npm install -g @google/gemini-cli"
+    echo "  - Codex: npm install -g @openai/codex"
+    exit 1
+  fi
 fi
 
 echo -e "${GREEN}Using agent: ${CYAN}$AGENT_NAME${NC}"

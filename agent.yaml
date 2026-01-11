@@ -1,12 +1,14 @@
 # Ralph Agent Configuration
 # 
 # CLI versions are determined by what's installed on your system.
-# Run: claude --version / codex --version / copilot --version to check.
+# Run: claude --version / codex --version / copilot --version / gemini --version to check.
 #
 # This file configures which agent to use and agent-specific options.
+# Agent priority (when auto-detecting): GitHub Copilot CLI → Claude Code → Gemini → Codex
 
 agent:
-  primary: claude-code
+  # Options: github-copilot, claude-code, gemini, codex, auto (auto-detect based on availability)
+  primary: github-copilot
   fallback: codex
 
 # Claude Code settings
