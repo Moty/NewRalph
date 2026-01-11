@@ -34,3 +34,10 @@ github-copilot:
   #   - "fetch"
   # Additional CLI flags (optional)
   # flags: ""
+
+# Gemini settings (Google AI)
+gemini:
+  model: gemini-2.5-pro  # Options: gemini-2.5-pro, gemini-2.5-flash, gemini-2.0-flash
+  # Gemini CLI uses 'gemini' command from @anthropic/gemini-cli or similar
+  # Additional CLI flags (optional)
+  # flags: ""
