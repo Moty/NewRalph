@@ -205,6 +205,160 @@ archive/
 EOF
 fi
 
+# ---- Add technology-specific gitignore entries ------------------
+
+# Node.js / JavaScript / TypeScript
+if [ -f "$TARGET_DIR/package.json" ]; then
+  echo "→ Detected Node.js project, updating .gitignore"
+  if ! grep -q "^node_modules" "$TARGET_DIR/.gitignore" 2>/dev/null; then
+    cat >> "$TARGET_DIR/.gitignore" << 'EOF'
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.npm
+.yarn/cache
+.yarn/unplugged
+.yarn/install-state.gz
+dist/
+build/
+.next/
+.nuxt/
+.output/
+.cache/
+coverage/
+.env.local
+.env.*.local
+EOF
+  fi
+fi
+
+# Python
+if [ -f "$TARGET_DIR/requirements.txt" ] || [ -f "$TARGET_DIR/pyproject.toml" ] || [ -f "$TARGET_DIR/setup.py" ] || [ -f "$TARGET_DIR/Pipfile" ]; then
+  echo "→ Detected Python project, updating .gitignore"
+  if ! grep -q "^__pycache__" "$TARGET_DIR/.gitignore" 2>/dev/null && ! grep -q "^venv" "$TARGET_DIR/.gitignore" 2>/dev/null; then
+    cat >> "$TARGET_DIR/.gitignore" << 'EOF'
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.env/
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+EOF
+  fi
+fi
+
+# Ruby
+if [ -f "$TARGET_DIR/Gemfile" ]; then
+  echo "→ Detected Ruby project, updating .gitignore"
+  if ! grep -q "^vendor/bundle" "$TARGET_DIR/.gitignore" 2>/dev/null; then
+    cat >> "$TARGET_DIR/.gitignore" << 'EOF'
+
+# Ruby
+vendor/bundle/
+.bundle/
+*.gem
+coverage/
+EOF
+  fi
+fi
+
+# Go
+if [ -f "$TARGET_DIR/go.mod" ]; then
+  echo "→ Detected Go project, updating .gitignore"
+  if ! grep -q "^vendor/" "$TARGET_DIR/.gitignore" 2>/dev/null; then
+    cat >> "$TARGET_DIR/.gitignore" << 'EOF'
+
+# Go
+vendor/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+EOF
+  fi
+fi
+
+# Rust
+if [ -f "$TARGET_DIR/Cargo.toml" ]; then
+  echo "→ Detected Rust project, updating .gitignore"
+  if ! grep -q "^target/" "$TARGET_DIR/.gitignore" 2>/dev/null; then
+    cat >> "$TARGET_DIR/.gitignore" << 'EOF'
+
+# Rust
+target/
+Cargo.lock
+EOF
+  fi
+fi
+
+# Java / Kotlin / Gradle / Maven
+if [ -f "$TARGET_DIR/pom.xml" ] || [ -f "$TARGET_DIR/build.gradle" ] || [ -f "$TARGET_DIR/build.gradle.kts" ]; then
+  echo "→ Detected Java/Kotlin project, updating .gitignore"
+  if ! grep -q "^target/" "$TARGET_DIR/.gitignore" 2>/dev/null && ! grep -q "^build/" "$TARGET_DIR/.gitignore" 2>/dev/null; then
+    cat >> "$TARGET_DIR/.gitignore" << 'EOF'
+
+# Java / Kotlin
+target/
+build/
+.gradle/
+*.class
+*.jar
+*.war
+*.ear
+.idea/
+*.iml
+EOF
+  fi
+fi
+
+# .NET / C#
+if ls "$TARGET_DIR"/*.csproj 1>/dev/null 2>&1 || ls "$TARGET_DIR"/*.sln 1>/dev/null 2>&1 || [ -d "$TARGET_DIR/obj" ]; then
+  echo "→ Detected .NET project, updating .gitignore"
+  if ! grep -q "^bin/" "$TARGET_DIR/.gitignore" 2>/dev/null && ! grep -q "^obj/" "$TARGET_DIR/.gitignore" 2>/dev/null; then
+    cat >> "$TARGET_DIR/.gitignore" << 'EOF'
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+EOF
+  fi
+fi
+
+# PHP / Composer
+if [ -f "$TARGET_DIR/composer.json" ]; then
+  echo "→ Detected PHP project, updating .gitignore"
+  if ! grep -q "^vendor/" "$TARGET_DIR/.gitignore" 2>/dev/null; then
+    cat >> "$TARGET_DIR/.gitignore" << 'EOF'
+
+# PHP
+vendor/
+.phpunit.result.cache
+EOF
+  fi
+fi
+
 # ---- Configure agent ------------------------------------------
 
 echo ""
