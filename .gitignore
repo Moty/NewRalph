@@ -8,5 +8,9 @@ ralph.log
 # Archive is optional to commit
 # archive/
 
+# Node.js
+node_modules/
+package-lock.json
+
 # OS files
 .DS_Store

@@ -1,0 +1,35 @@
+{
+  "name": "ralph",
+  "version": "1.0.0",
+  "description": "Ralph - Long-running AI agent loop for autonomous development",
+  "type": "module",
+  "main": "ralph.js",
+  "bin": {
+    "ralph": "./ralph.js",
+    "ralph-setup": "./setup-ralph.js",
+    "ralph-models": "./ralph-models.js",
+    "create-prd": "./create-prd.js"
+  },
+  "scripts": {
+    "start": "node ralph.js",
+    "setup": "node setup-ralph.js",
+    "models": "node ralph-models.js",
+    "create-prd": "node create-prd.js"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "automation",
+    "claude",
+    "codex",
+    "copilot",
+    "gemini"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "yaml": "^2.3.4"
+  }
+}
