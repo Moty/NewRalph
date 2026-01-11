@@ -205,6 +205,7 @@ get_fallback_agent() { yq '.agent.fallback // ""' "$AGENT_CONFIG"; }
 get_claude_model() { yq '.claude-code.model // "claude-sonnet-4-20250514"' "$AGENT_CONFIG"; }
 get_codex_model() { yq '.codex.model // "gpt-4o"' "$AGENT_CONFIG"; }
 get_codex_approval_mode() { yq '.codex.approval-mode // "full-auto"' "$AGENT_CONFIG"; }
+get_codex_sandbox() { yq '.codex.sandbox // "full-access"' "$AGENT_CONFIG"; }
 get_copilot_tool_approval() { yq '.github-copilot.tool-approval // "allow-all"' "$AGENT_CONFIG"; }
 get_copilot_deny_tools() { yq '.github-copilot.deny-tools[]? // ""' "$AGENT_CONFIG"; }
 
@@ -242,17 +243,32 @@ run_agent() {
     codex)
       local MODEL=$(get_codex_model)
       local APPROVAL=$(get_codex_approval_mode)
-      echo -e "→ Running ${CYAN}Codex${NC} (model: $MODEL, approval: $APPROVAL, timeout: $TIMEOUT_DISPLAY)"
-      local APPROVAL_FLAG=""
-      [ "$APPROVAL" = "full-auto" ] && APPROVAL_FLAG="--full-auto"
-      [ "$APPROVAL" = "danger" ] && APPROVAL_FLAG="--dangerously-bypass-approvals-and-sandbox"
+      local SANDBOX=$(get_codex_sandbox)
+      echo -e "→ Running ${CYAN}Codex${NC} (model: $MODEL, approval: $APPROVAL, sandbox: $SANDBOX, timeout: $TIMEOUT_DISPLAY)"
+      
+      local CODEX_FLAGS=""
+      # Handle approval mode and sandbox
+      # Note: --full-auto forces workspace-write sandbox, so for full-access we need danger mode
+      if [ "$APPROVAL" = "danger" ] || [ "$SANDBOX" = "full-access" ]; then
+        # Full access requires bypassing the sandbox entirely
+        CODEX_FLAGS="--dangerously-bypass-approvals-and-sandbox"
+      elif [ "$APPROVAL" = "full-auto" ]; then
+        # Full-auto with workspace-write sandbox (default)
+        CODEX_FLAGS="--full-auto"
+      else
+        # Just set the sandbox mode explicitly
+        case "$SANDBOX" in
+          workspace-write) CODEX_FLAGS="--sandbox workspace-write" ;;
+          read-only) CODEX_FLAGS="--sandbox read-only" ;;
+        esac
+      fi
 
       # Run with timeout if run_with_timeout function exists and timeout > 0
       if type run_with_timeout >/dev/null 2>&1 && [ "$AGENT_TIMEOUT" -gt 0 ] 2>/dev/null; then
-        run_with_timeout "$AGENT_TIMEOUT" codex exec $APPROVAL_FLAG -m "$MODEL" --skip-git-repo-check \
+        run_with_timeout "$AGENT_TIMEOUT" codex exec $CODEX_FLAGS -m "$MODEL" --skip-git-repo-check \
           "Read prd.json and implement the next incomplete story. Follow system_instructions/system_instructions_codex.md. When all stories complete, output: RALPH_COMPLETE"
       else
-        codex exec $APPROVAL_FLAG -m "$MODEL" --skip-git-repo-check \
+        codex exec $CODEX_FLAGS -m "$MODEL" --skip-git-repo-check \
           "Read prd.json and implement the next incomplete story. Follow system_instructions/system_instructions_codex.md. When all stories complete, output: RALPH_COMPLETE"
       fi
       ;;
@@ -416,13 +432,19 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
   ITERATION_END=$(date +%s)
   ITERATION_DURATION=$((ITERATION_END - ITERATION_START))
 
-  if echo "$OUTPUT" | grep -q "RALPH_COMPLETE"; then
-    print_iteration_summary $i $ITERATION_DURATION "success"
-    echo -e "\n${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${GREEN}  🎉 Ralph completed all tasks!${NC}"
-    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "Completed at iteration ${YELLOW}$i${NC} | Total time: ${BLUE}$(get_elapsed_time)${NC}"
-    exit 0
+  # Check for RALPH_COMPLETE - must be a standalone line, not part of the prompt
+  # The prompt contains "output: RALPH_COMPLETE" so we need to match it as standalone
+  if echo "$OUTPUT" | grep -qE '^RALPH_COMPLETE$|^[^:]*RALPH_COMPLETE[^"]*$'; then
+    # Double-check: verify all stories in PRD are marked as passing
+    ALL_PASS=$(jq '[.userStories[].passes] | all' "$PRD_FILE" 2>/dev/null || echo "false")
+    if [ "$ALL_PASS" = "true" ]; then
+      print_iteration_summary $i $ITERATION_DURATION "success"
+      echo -e "\n${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+      echo -e "${GREEN}  🎉 Ralph completed all tasks!${NC}"
+      echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+      echo -e "Completed at iteration ${YELLOW}$i${NC} | Total time: ${BLUE}$(get_elapsed_time)${NC}"
+      exit 0
+    fi
   fi
 
   check_error "$OUTPUT" && print_iteration_summary $i $ITERATION_DURATION "error" || print_iteration_summary $i $ITERATION_DURATION "success"

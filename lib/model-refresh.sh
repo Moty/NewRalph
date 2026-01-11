@@ -16,12 +16,12 @@ DEFAULT_CLAUDE_MODELS='[
 ]'
 
 DEFAULT_CODEX_MODELS='[
+  "gpt-5.2-codex",
+  "gpt-5.1-codex-max",
+  "gpt-5.1-codex-mini",
+  "gpt-5.2",
   "gpt-4o",
-  "gpt-4o-mini",
-  "gpt-4-turbo",
-  "o3",
-  "o4-mini",
-  "codex-5.2"
+  "o4-mini"
 ]'
 
 # Detect available Claude models

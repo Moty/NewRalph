@@ -96,7 +96,7 @@ show_claude_models() {
 # Codex models
 show_codex_models() {
   echo -e "${BLUE}Codex${NC} (via codex CLI)"
-  echo -e "  ${YELLOW}Current:${NC} $(yq '.codex.model // "gpt-4o"' "$AGENT_CONFIG" 2>/dev/null)"
+  echo -e "  ${YELLOW}Current:${NC} $(yq '.codex.model // "gpt-5.2-codex"' "$AGENT_CONFIG" 2>/dev/null)"
   echo ""
 
   # Get available models dynamically
@@ -111,17 +111,20 @@ show_codex_models() {
       while IFS= read -r model; do
         # Annotate recommended models
         case "$model" in
-          "gpt-4o")
-            echo "    • $model ${CYAN}(recommended for ChatGPT Pro)${NC}"
+          "gpt-5.2-codex")
+            echo "    • $model ${CYAN}(latest frontier agentic coding)${NC}"
             ;;
-          "gpt-4o-mini")
+          "gpt-5.1-codex-max")
+            echo "    • $model ${CYAN}(flagship deep reasoning)${NC}"
+            ;;
+          "gpt-5.1-codex-mini")
             echo "    • $model ${CYAN}(faster, cheaper)${NC}"
+            ;;
+          "gpt-5.2")
+            echo "    • $model ${CYAN}(frontier with reasoning/coding)${NC}"
             ;;
           o3|o4*)
             echo "    • $model ${CYAN}(reasoning model)${NC}"
-            ;;
-          "codex-"*)
-            echo "    • $model ${CYAN}(requires API access)${NC}"
             ;;
           *)
             echo "    • $model"
@@ -130,27 +133,25 @@ show_codex_models() {
       done <<< "$models"
     else
       echo "    ${YELLOW}No models detected, showing defaults:${NC}"
-      echo "    • gpt-4o           (recommended for ChatGPT Pro)"
-      echo "    • gpt-4o-mini      (faster, cheaper)"
-      echo "    • gpt-4-turbo      (older, still good)"
-      echo "    • o3               (reasoning model, slow)"
-      echo "    • o4-mini          (mini reasoning)"
-      echo "    • codex-5.2        (requires API access)"
+      echo "    • gpt-5.2-codex      (latest frontier agentic coding)"
+      echo "    • gpt-5.1-codex-max  (flagship deep reasoning)"
+      echo "    • gpt-5.1-codex-mini (faster, cheaper)"
+      echo "    • gpt-5.2            (frontier with reasoning/coding)"
+      echo "    • gpt-4o             (legacy, still available)"
     fi
   else
     echo -e "  ${GREEN}Available models:${NC}"
-    echo "    • gpt-4o           (recommended for ChatGPT Pro)"
-    echo "    • gpt-4o-mini      (faster, cheaper)"
-    echo "    • gpt-4-turbo      (older, still good)"
-    echo "    • o3               (reasoning model, slow)"
-    echo "    • o4-mini          (mini reasoning)"
-    echo "    • codex-5.2        (requires API access)"
+    echo "    • gpt-5.2-codex      (latest frontier agentic coding)"
+    echo "    • gpt-5.1-codex-max  (flagship deep reasoning)"
+    echo "    • gpt-5.1-codex-mini (faster, cheaper)"
+    echo "    • gpt-5.2            (frontier with reasoning/coding)"
+    echo "    • gpt-4o             (legacy, still available)"
   fi
   echo ""
 
   if command -v codex &>/dev/null; then
     echo -e "  ${GREEN}CLI found:${NC} $(codex --version 2>/dev/null || echo 'unknown version')"
-    echo -e "  ${CYAN}Note:${NC} Some models require OpenAI API access (not ChatGPT Pro)"
+    echo -e "  ${CYAN}Tip:${NC} Run 'codex' then /model to see all available models"
   else
     echo -e "  ${RED}CLI not found${NC} - install with 'npm install -g @openai/codex'"
   fi

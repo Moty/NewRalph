@@ -17,8 +17,9 @@ claude-code:
 
 # Codex settings  
 codex:
-  model: codex-5.2  # latest Codex model (use gpt-4o / o1 variants if unavailable)
+  model: gpt-5.2-codex  # Latest: gpt-5.2-codex, gpt-5.1-codex-max, gpt-5.1-codex-mini, gpt-5.2
   approval-mode: full-auto  # full-auto, danger, or omit for interactive
+  sandbox: full-access  # full-access (git allowed), workspace-write, read-only
   # Additional CLI flags (optional)
   # flags: ""
 
