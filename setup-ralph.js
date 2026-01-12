@@ -72,26 +72,6 @@ if (!existsSync(path.join(TARGET_PATH, '.git'))) {
 
 console.log('Checking dependencies...');
 
-if (!commandExists('jq')) {
-  console.log(`${colors.RED}Missing required tool: jq${colors.NC}`);
-  if (isWindows()) {
-    console.log('Install with: choco install jq');
-  } else {
-    console.log('Install with: brew install jq');
-  }
-  process.exit(1);
-}
-
-if (!commandExists('yq')) {
-  console.log(`${colors.RED}Missing required tool: yq${colors.NC}`);
-  if (isWindows()) {
-    console.log('Install with: choco install yq');
-  } else {
-    console.log('Install with: brew install yq');
-  }
-  process.exit(1);
-}
-
 let HAS_CLAUDE = false;
 let HAS_CODEX = false;
 let HAS_COPILOT = false;
@@ -129,17 +109,30 @@ if (!HAS_CLAUDE && !HAS_CODEX && !HAS_COPILOT && !HAS_GEMINI) {
 
 // ---- Helper functions -----------------------------------------------
 
-function copyDir(src, dest) {
+function copyDir(src, dest, options = {}) {
+  const { excludePatterns = [] } = options;
   mkdirSync(dest, { recursive: true });
   const entries = readdirSync(src);
 
   for (const entry of entries) {
+    // Skip files matching exclude patterns
+    const shouldExclude = excludePatterns.some(pattern => {
+      if (pattern instanceof RegExp) {
+        return pattern.test(entry);
+      }
+      return entry.endsWith(pattern);
+    });
+
+    if (shouldExclude) {
+      continue;
+    }
+
     const srcPath = path.join(src, entry);
     const destPath = path.join(dest, entry);
     const stat = statSync(srcPath);
 
     if (stat.isDirectory()) {
-      copyDir(srcPath, destPath);
+      copyDir(srcPath, destPath, options);
     } else {
       copyFileSync(srcPath, destPath);
     }
@@ -193,16 +186,20 @@ copyFileSync(path.join(RALPH_DIR, 'system_instructions', 'system_instructions.md
 copyFileSync(path.join(RALPH_DIR, 'system_instructions', 'system_instructions_codex.md'), path.join(sysInstrDir, 'system_instructions_codex.md'));
 copyFileSync(path.join(RALPH_DIR, 'system_instructions', 'system_instructions_copilot.md'), path.join(sysInstrDir, 'system_instructions_copilot.md'));
 
-// Copy lib directory with common functions
+// Copy lib directory with common functions (exclude .sh files)
 if (existsSync(path.join(RALPH_DIR, 'lib'))) {
   console.log('→ Copying lib/');
-  copyDir(path.join(RALPH_DIR, 'lib'), path.join(TARGET_PATH, 'lib'));
+  copyDir(path.join(RALPH_DIR, 'lib'), path.join(TARGET_PATH, 'lib'), {
+    excludePatterns: ['.sh']
+  });
 }
 
-// Copy skills (optional)
+// Copy skills (optional, exclude .sh files)
 if (existsSync(path.join(RALPH_DIR, 'skills'))) {
   console.log('→ Copying skills/');
-  copyDir(path.join(RALPH_DIR, 'skills'), path.join(TARGET_PATH, 'skills'));
+  copyDir(path.join(RALPH_DIR, 'skills'), path.join(TARGET_PATH, 'skills'), {
+    excludePatterns: ['.sh']
+  });
 }
 
 // Create PRD from example

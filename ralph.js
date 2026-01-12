@@ -92,9 +92,6 @@ const START_TIME = Date.now();
 
 // ---- Helper Functions -----------------------------------------------
 
-requireBin('jq');
-requireBin('yq');
-
 function getElapsedTime() {
   const elapsed = Math.floor((Date.now() - START_TIME) / 1000);
   return formatDuration(elapsed);

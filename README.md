@@ -97,7 +97,7 @@ node setup-ralph.js /path/to/your/project
 ```
 
 Both methods will:
-- ✓ Check for required dependencies (jq, yq, claude/codex)
+- ✓ Check for required AI agent CLI (Claude Code, Codex, Copilot, or Gemini)
 - ✓ Copy all necessary files to your project
 - ✓ Configure your preferred agent (Claude Code or Codex)
 - ✓ Detect and cache available models automatically
@@ -131,30 +131,6 @@ ralph.cmd          # Instead of ./ralph.sh
 create-prd.cmd     # Instead of ./create-prd.sh
 ralph-models.cmd   # Instead of ./ralph-models.sh
 ```
-
-### Required Tools
-- **jq** - JSON processor
-  ```bash
-  # macOS
-  brew install jq
-
-  # Windows
-  choco install jq
-
-  # Linux
-  sudo apt-get install jq
-  ```
-- **yq** - YAML processor
-  ```bash
-  # macOS
-  brew install yq
-
-  # Windows
-  choco install yq
-
-  # Linux
-  sudo snap install yq
-  ```
 
 ### At Least One AI Agent CLI
 - **Claude Code CLI**
@@ -565,7 +541,10 @@ Check current state:
 
 ```bash
 # See which stories are done
-cat prd.json | jq '.userStories[] | {id, title, passes}'
+node -e "const prd = require('./prd.json'); prd.userStories.forEach(s => console.log(s.id, s.title, s.passes))"
+
+# Or use a simple script
+node -e "console.log(JSON.stringify(require('./prd.json').userStories.map(s => ({id: s.id, title: s.title, passes: s.passes})), null, 2))"
 
 # See learnings from previous iterations
 cat progress.txt
