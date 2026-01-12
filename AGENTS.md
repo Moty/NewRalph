@@ -6,6 +6,8 @@ Ralph is an autonomous AI agent loop that runs AI coding agents (Claude Code or 
 
 ## Installation
 
+### Linux/macOS
+
 ```bash
 # Global installation (recommended)
 ./install.sh
@@ -19,7 +21,22 @@ cp ralph.sh agent.yaml /path/to/project/
 cp -r system_instructions /path/to/project/
 ```
 
+### Windows
+
+**Requires WSL (recommended) or Git Bash**
+
+```powershell
+# Global installation (recommended)
+.\install.ps1
+# Then from anywhere: ralph-setup C:\path\to\project
+
+# Or use WSL directly
+wsl bash ./setup-ralph.sh /mnt/c/path/to/project
+```
+
 ## Commands
+
+### Linux/macOS
 
 ```bash
 # Run the setup script
@@ -33,6 +50,21 @@ cd flowchart && npm run build
 
 # Run Ralph (from your project that has prd.json)
 ./ralph.sh [max_iterations]
+```
+
+### Windows
+
+```powershell
+# Run the setup script (from Ralph repo)
+ralph-setup C:\path\to\project
+
+# In your project directory - use .cmd wrappers
+ralph.cmd [max_iterations]        # Run Ralph
+create-prd.cmd "description"       # Generate PRD
+ralph-models.cmd --refresh         # List available models
+
+# Or use bash directly in WSL/Git Bash
+bash ralph.sh [max_iterations]
 ```
 
 ## Key Files

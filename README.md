@@ -20,6 +20,7 @@ Ralph is now written in **Node.js** for seamless cross-platform support on:
 ### Option 1: npm Installation (Recommended)
 
 Install Ralph globally using npm:
+**Linux/macOS:**
 
 ```bash
 # Clone Ralph repository
@@ -60,6 +61,24 @@ ralph-setup .
 ```
 
 ### Option 3: Direct Installation
+**Windows:**
+
+```powershell
+# Clone Ralph repository
+git clone https://github.com/snarktank/ralph.git
+cd ralph
+
+# Install globally (requires WSL or Git Bash)
+.\install.ps1
+
+# Now use from anywhere
+cd C:\path\to\your\project
+ralph-setup .
+```
+
+This creates a global `ralph-setup` command in `%LOCALAPPDATA%\Ralph` and adds it to your PATH. Requires WSL (recommended) or Git Bash to be installed.
+
+### Option 2: Direct Installation
 
 Run setup from the Ralph repository:
 
@@ -100,6 +119,18 @@ Both methods will:
   curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
   sudo apt-get install -y nodejs
   ```
+### For Windows Users
+
+**Ralph requires a bash environment on Windows:**
+- **WSL (Recommended)** - Run `wsl --install` in PowerShell as Administrator
+- **Git Bash** - Comes with [Git for Windows](https://git-scm.com/download/win)
+
+Once installed, Ralph provides `.cmd` wrappers so you can run commands directly from PowerShell or cmd:
+```powershell
+ralph.cmd          # Instead of ./ralph.sh
+create-prd.cmd     # Instead of ./create-prd.sh
+ralph-models.cmd   # Instead of ./ralph-models.sh
+```
 
 ### Required Tools
 - **jq** - JSON processor
@@ -149,6 +180,7 @@ Ralph works with any of these agents and can use multiple with automatic fallbac
 
 If you installed Ralph via npm link:
 
+**Linux/macOS:**
 ```bash
 npm unlink ralph
 ```
@@ -161,6 +193,12 @@ sudo rm /usr/local/bin/ralph-setup
 
 # Windows
 # Delete the script from your npm bin folder
+```
+
+**Windows:**
+```powershell
+Remove-Item -Recurse "$env:LOCALAPPDATA\Ralph"
+# Then manually remove from PATH in System Environment Variables
 ```
 
 To remove Ralph from a project, delete the installed files:

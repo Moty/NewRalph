@@ -156,6 +156,17 @@ fi
 echo "→ Creating archive/"
 mkdir -p "$TARGET_DIR/archive"
 
+# Copy Windows wrapper scripts (if on Windows/WSL or requested)
+if [ -d "$RALPH_DIR/windows" ]; then
+  # Detect if we're in a Windows environment (WSL or MSYS/Git Bash)
+  if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]] || grep -qi microsoft /proc/version 2>/dev/null; then
+    echo "→ Copying Windows wrapper scripts (ralph.cmd, create-prd.cmd, ralph-models.cmd)"
+    cp "$RALPH_DIR/windows/ralph.cmd" "$TARGET_DIR/" 2>/dev/null || true
+    cp "$RALPH_DIR/windows/create-prd.cmd" "$TARGET_DIR/" 2>/dev/null || true
+    cp "$RALPH_DIR/windows/ralph-models.cmd" "$TARGET_DIR/" 2>/dev/null || true
+  fi
+fi
+
 # Copy AGENTS.md template
 if [ ! -f "$TARGET_DIR/AGENTS.md" ]; then
   echo "→ Creating AGENTS.md"
@@ -502,14 +513,29 @@ echo "2. Review and customize agent.yaml if needed:"
 echo "   ${YELLOW}vim agent.yaml${NC}"
 echo ""
 echo "3. Run Ralph:"
-echo "   ${YELLOW}./ralph.sh${NC}"
+if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]] || grep -qi microsoft /proc/version 2>/dev/null; then
+  echo "   ${YELLOW}ralph.cmd${NC}               # Windows (PowerShell/cmd)"
+  echo "   ${YELLOW}bash ralph.sh${NC}           # WSL/Git Bash"
+else
+  echo "   ${YELLOW}./ralph.sh${NC}"
+fi
 echo ""
 echo "Optional flags:"
-echo "   ${YELLOW}./ralph.sh 20 --verbose${NC}         # Run 20 iterations with verbose logging"
-echo "   ${YELLOW}./ralph.sh --timeout 7200${NC}       # Set 2-hour timeout per iteration"
+if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]] || grep -qi microsoft /proc/version 2>/dev/null; then
+  echo "   ${YELLOW}ralph.cmd 20 --verbose${NC}         # Run 20 iterations with verbose logging"
+  echo "   ${YELLOW}ralph.cmd --timeout 7200${NC}       # Set 2-hour timeout per iteration"
+else
+  echo "   ${YELLOW}./ralph.sh 20 --verbose${NC}         # Run 20 iterations with verbose logging"
+  echo "   ${YELLOW}./ralph.sh --timeout 7200${NC}       # Set 2-hour timeout per iteration"
+fi
 echo ""
 echo "Files created in $TARGET_DIR:"
 echo "  • ralph.sh - Main execution script"
+if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]] || grep -qi microsoft /proc/version 2>/dev/null; then
+  echo "  • ralph.cmd - Windows wrapper for ralph.sh"
+  echo "  • create-prd.cmd - Windows wrapper for create-prd.sh"
+  echo "  • ralph-models.cmd - Windows wrapper for ralph-models.sh"
+fi
 echo "  • agent.yaml - Agent configuration"
 echo "  • system_instructions/ - Agent prompts"
 echo "  • lib/ - Validation and utility functions"
