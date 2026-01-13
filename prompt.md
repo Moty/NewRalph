@@ -88,14 +88,21 @@ Only update AGENTS.md if you have **genuinely reusable knowledge** that would he
 
 ## Browser Testing (Required for Frontend Stories)
 
-For any story that changes UI, you MUST verify it works in the browser:
+For any story that changes UI, you MUST verify it works using Playwright browser tools:
 
-1. Load the `dev-browser` skill
-2. Navigate to the relevant page
-3. Verify the UI changes work as expected
-4. Take a screenshot if helpful for the progress log
+1. **Start the dev server** if needed (e.g., `npm run dev`, `yarn dev`)
+2. **Use browser_navigate** to open the relevant page (e.g., `http://localhost:3000/dashboard`)
+3. **Use browser_snapshot** to capture the page state and verify elements are present
+4. **Use browser_click, browser_type, etc.** to interact with the UI and test functionality
+5. **Take a screenshot** using browser_take_screenshot to document the working feature
+6. **Verify the changes** work as expected before marking the story complete
 
-A frontend story is NOT complete until browser verification passes.
+A frontend story is NOT complete until browser verification passes. If the page shows errors or the feature doesn't work visually, fix the issues before updating `passes: true`.
+
+**Note:** The specific browser tools available depend on your agent's environment:
+- **GitHub Copilot environments**: Use Playwright tools (browser_navigate, browser_snapshot, browser_click, etc.)
+- **Claude Code/Codex CLI with skills**: May use a `dev-browser` skill
+- **Check your available tools**: Look at your tool documentation to see which browser automation capabilities you have
 
 ## Stop Condition
 
