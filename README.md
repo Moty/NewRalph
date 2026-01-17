@@ -405,6 +405,8 @@ your-project/
 | `skills/prd/BROWNFIELD.md` | PRD skill for existing codebases (integration, patterns) |
 | `skills/ralph/` | Skill for converting PRDs to JSON |
 | `flowchart/` | Interactive visualization of how Ralph works |
+| `specs/INDEX.md` | The Pin - Discovery index of existing functionality |
+| `scripts/generate-pin.sh` | Auto-generate The Pin from codebase analysis |
 
 ## Flowchart
 
@@ -452,6 +454,22 @@ Examples of what to add to AGENTS.md:
 - Patterns discovered ("this codebase uses X for Y")
 - Gotchas ("do not forget to update Z when changing W")
 - Useful context ("the settings panel is in component X")
+
+### The Pin (Discovery Index)
+
+The Pin (`specs/INDEX.md`) is a searchable index of existing functionality. It prevents duplicate implementations by helping agents discover existing code before writing new features.
+
+**Maintaining The Pin:**
+
+```bash
+# Auto-generate from codebase structure
+./scripts/generate-pin.sh
+
+# Manually refine keywords for better discoverability
+# Edit specs/INDEX.md to add domain-specific terms
+```
+
+Agents automatically consult The Pin before implementing new features using the Discovery Protocol defined in system instructions.
 
 ### Feedback Loops
 
