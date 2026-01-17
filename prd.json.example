@@ -1,7 +1,7 @@
 {
   "project": "MyApp",
   "branchName": "ralph/task-priority",
-  "description": "Task Priority System - Add priority levels to tasks",
+  "description": "Task Priority System - Add priority levels to tasks. This example demonstrates the blockedBy field for managing task dependencies.",
   "userStories": [
     {
       "id": "US-001",
@@ -27,8 +27,11 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 2,
+      "blockedBy": [
+        "US-001"
+      ],
       "passes": false,
-      "notes": ""
+      "notes": "Blocked by US-001 because database field must exist before displaying priority"
     },
     {
       "id": "US-003",
@@ -42,8 +45,11 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 3,
+      "blockedBy": [
+        "US-001"
+      ],
       "passes": false,
-      "notes": ""
+      "notes": "Blocked by US-001 because database field must exist before editing priority"
     },
     {
       "id": "US-004",
@@ -57,8 +63,11 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
+      "blockedBy": [
+        "US-002"
+      ],
       "passes": false,
-      "notes": ""
+      "notes": "Blocked by US-002 because UI must display priority before it can be filtered"
     }
   ]
 }
