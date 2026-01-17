@@ -92,11 +92,46 @@ get_elapsed_time() {
 
 get_current_story() {
   if [ -f "$PRD_FILE" ]; then
-    local story=$(jq -r '.userStories[] | select(.passes == false) | "\(.id): \(.title)"' "$PRD_FILE" 2>/dev/null | head -1)
-    if [ -n "$story" ]; then
-      echo "$story"
-    else
+    # Get all incomplete stories
+    local incomplete_stories=$(jq -r '.userStories[] | select(.passes == false) | @json' "$PRD_FILE" 2>/dev/null)
+    
+    if [ -z "$incomplete_stories" ]; then
       echo "All stories complete"
+      return
+    fi
+    
+    # Find first ready story (incomplete with all dependencies met)
+    local ready_story=""
+    while IFS= read -r story_json; do
+      local story_id=$(echo "$story_json" | jq -r '.id')
+      local blockedBy=$(echo "$story_json" | jq -r '.blockedBy // empty | .[]' 2>/dev/null)
+      
+      # Check if all dependencies are complete
+      local is_ready=true
+      if [ -n "$blockedBy" ]; then
+        while IFS= read -r dep_id; do
+          if [ -n "$dep_id" ]; then
+            local dep_passes=$(jq -r ".userStories[] | select(.id == \"$dep_id\") | .passes" "$PRD_FILE" 2>/dev/null)
+            if [ "$dep_passes" != "true" ]; then
+              is_ready=false
+              break
+            fi
+          fi
+        done <<< "$blockedBy"
+      fi
+      
+      if [ "$is_ready" = true ]; then
+        ready_story=$(echo "$story_json" | jq -r '"\(.id): \(.title)"')
+        break
+      fi
+    done <<< "$incomplete_stories"
+    
+    if [ -n "$ready_story" ]; then
+      echo "$ready_story"
+    else
+      # No ready stories but incomplete stories exist - all are blocked
+      echo -e "${YELLOW}Warning: All incomplete stories are blocked by dependencies${NC}" >&2
+      echo "All stories blocked"
     fi
   else
     echo "No PRD found"
@@ -356,6 +391,7 @@ get_codex_approval_mode() { yq '.codex.approval-mode // "full-auto"' "$AGENT_CON
 get_codex_sandbox() { yq '.codex.sandbox // "full-access"' "$AGENT_CONFIG"; }
 get_copilot_tool_approval() { yq '.github-copilot.tool-approval // "allow-all"' "$AGENT_CONFIG"; }
 get_copilot_deny_tools() { yq '.github-copilot.deny-tools[]? // ""' "$AGENT_CONFIG"; }
+get_copilot_model() { yq '.github-copilot.model // "auto"' "$AGENT_CONFIG"; }
 get_gemini_model() { yq '.gemini.model // "gemini-2.5-pro"' "$AGENT_CONFIG"; }
 
 CLAUDE_CMD=""
@@ -423,18 +459,28 @@ run_agent() {
       ;;
     github-copilot)
       local TOOL_APPROVAL=$(get_copilot_tool_approval)
-      echo -e "→ Running ${CYAN}GitHub Copilot${NC} (tool-approval: $TOOL_APPROVAL, timeout: $TIMEOUT_DISPLAY)"
+      local COPILOT_MODEL=$(get_copilot_model)
+      local MODEL_DISPLAY="auto"
+      [ "$COPILOT_MODEL" != "auto" ] && MODEL_DISPLAY="$COPILOT_MODEL"
+      echo -e "→ Running ${CYAN}GitHub Copilot${NC} (model: $MODEL_DISPLAY, tool-approval: $TOOL_APPROVAL, timeout: $TIMEOUT_DISPLAY)"
       command -v copilot >/dev/null 2>&1 || { echo -e "${RED}Error: Copilot CLI not found${NC}"; return 1; }
 
-      # Build tool approval flags as an array for proper quoting
-      local TOOL_FLAGS=()
+      # Build flags as an array for proper quoting
+      local COPILOT_FLAGS=()
+      
+      # Add model flag if not auto
+      if [ -n "$COPILOT_MODEL" ] && [ "$COPILOT_MODEL" != "auto" ] && [ "$COPILOT_MODEL" != "null" ]; then
+        COPILOT_FLAGS+=("--model" "$COPILOT_MODEL")
+      fi
+      
+      # Add tool approval flags
       if [ "$TOOL_APPROVAL" = "allow-all" ]; then
-        TOOL_FLAGS+=("--allow-all-tools")
+        COPILOT_FLAGS+=("--allow-all-tools")
         # Add deny-tools if specified
         local DENY_TOOLS="$(get_copilot_deny_tools)"
         if [ -n "$DENY_TOOLS" ]; then
           while IFS= read -r tool; do
-            [ -n "$tool" ] && TOOL_FLAGS+=("--deny-tool" "$tool")
+            [ -n "$tool" ] && COPILOT_FLAGS+=("--deny-tool" "$tool")
           done <<< "$DENY_TOOLS"
         fi
       fi
@@ -444,9 +490,9 @@ run_agent() {
 
       # Run with timeout if run_with_timeout function exists and timeout > 0
       if type run_with_timeout >/dev/null 2>&1 && [ "$AGENT_TIMEOUT" -gt 0 ] 2>/dev/null; then
-        run_with_timeout "$AGENT_TIMEOUT" copilot -p "$PROMPT" "${TOOL_FLAGS[@]}"
+        run_with_timeout "$AGENT_TIMEOUT" copilot -p "$PROMPT" "${COPILOT_FLAGS[@]}"
       else
-        copilot -p "$PROMPT" "${TOOL_FLAGS[@]}"
+        copilot -p "$PROMPT" "${COPILOT_FLAGS[@]}"
       fi
       ;;
     gemini)
