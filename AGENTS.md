@@ -71,6 +71,14 @@ cd flowchart && npm run build
 
 # Run Ralph (from your project that has prd.json)
 ./ralph.sh [max_iterations]
+
+# Self-update from a project
+./ralph.sh --check-update    # Check for updates
+./ralph.sh --update          # Update to latest version
+
+# Bulk update all projects (from Ralph source repo)
+./ralph-update-all.sh                    # Search default paths
+./ralph-update-all.sh ~/work ~/projects  # Custom paths
 ```
 
 ### Windows
@@ -81,6 +89,7 @@ ralph-setup C:\path\to\project
 
 # In your project directory - use .cmd wrappers
 ralph.cmd [max_iterations]        # Run Ralph
+ralph.cmd --update                # Update Ralph
 create-prd.cmd "description"       # Generate PRD
 ralph-models.cmd --refresh         # List available models
 
@@ -91,6 +100,7 @@ bash ralph.sh [max_iterations]
 ## Key Files
 
 - `setup-ralph.sh` - Automated installation/update script for any project
+- `ralph-update-all.sh` - Bulk updater for all Ralph installations
 - `create-prd.sh` - Automated PRD generation and conversion script
 - `ralph.sh` - The bash loop that spawns fresh agent instances
 - `ralph-models.sh` - Model listing and cache management utility

@@ -102,7 +102,8 @@ EXISTING_INSTALL=false
 VERSION_FILE="$TARGET_DIR/.ralph-version"
 
 if [ -f "$VERSION_FILE" ]; then
-  EXISTING_VERSION=$(cat "$VERSION_FILE" 2>/dev/null || echo "unknown")
+  # Parse version from new format (version=X.X.X) or old format (just version number)
+  EXISTING_VERSION=$(grep '^version=' "$VERSION_FILE" 2>/dev/null | sed 's/version=//' || head -n 1 "$VERSION_FILE")
   EXISTING_INSTALL=true
 elif [ -f "$TARGET_DIR/ralph.sh" ]; then
   EXISTING_VERSION="pre-1.0 (no version file)"
@@ -665,8 +666,12 @@ fi
 
 # ---- Setup complete -------------------------------------------
 
-# Write version file
-echo "$RALPH_VERSION" > "$TARGET_DIR/.ralph-version"
+# Write version file with source repo for self-update capability
+cat > "$TARGET_DIR/.ralph-version" << EOF
+version=$RALPH_VERSION
+date=$RALPH_VERSION_DATE
+source=$RALPH_DIR
+EOF
 
 echo ""
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

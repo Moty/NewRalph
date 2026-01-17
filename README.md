@@ -166,6 +166,46 @@ The `setup-ralph.sh` script handles everything:
 - Creates timestamped backups in `.ralph-backup/`
 - Writes version to `.ralph-version` for tracking
 
+### Self-Update from Projects
+
+Projects can update themselves without needing direct access to the Ralph repo:
+
+```bash
+# Check if updates are available
+./ralph.sh --check-update
+
+# Update to latest version
+./ralph.sh --update
+```
+
+This works by:
+1. Reading the source repo path from `.ralph-version`
+2. Comparing versions with the source
+3. Running `setup-ralph.sh --update` automatically
+
+**Tip:** Keep your Ralph source repo up to date with `git pull`, then use `./ralph.sh --update` in each project.
+
+### Bulk Update All Projects
+
+For projects with older Ralph versions (pre-1.1.0), use the bulk updater from the Ralph source repo:
+
+```bash
+# Update all Ralph installations found in default paths
+cd /path/to/ralph
+./ralph-update-all.sh
+
+# Or specify custom search paths
+./ralph-update-all.sh ~/work ~/projects /Volumes/ExternalDrive/projects
+```
+
+This will:
+- Search for all `ralph.sh` files in the specified directories
+- Show found installations with their versions
+- Update them all after confirmation
+- Enable self-update (`./ralph.sh --update`) for future updates
+
+**Default search paths:** `~/Projects` and `/Volumes/MMMACSSD/Projects`
+
 This will copy all necessary files and guide you through configuration.
 
 ### Manual Setup
