@@ -1,0 +1,186 @@
+{
+  "project": "Ralph",
+  "branchName": "ralph/context-management",
+  "description": "Context Management Enhancement - Advanced context management with discovery index, dependency support, and memory compaction",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add blockedBy validation to PRD",
+      "description": "As a developer, I want the PRD validator to support and validate blockedBy fields so that task dependencies are checked before Ralph runs.",
+      "acceptanceCriteria": [
+        "lib/common.sh validate_prd_json() accepts optional blockedBy array field on each story",
+        "Validation checks that all referenced story IDs in blockedBy exist in the PRD",
+        "Validation logs warning for circular dependencies (A blocks B, B blocks A)",
+        "Stories without blockedBy are treated as having no dependencies (backward compatible)",
+        "Existing tests still pass (manual validation with existing prd.json.example)",
+        "Typecheck passes (shellcheck lib/common.sh)"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Implement dependency-aware task selection",
+      "description": "As Ralph, I want to select only tasks whose dependencies are complete so that stories execute in the correct order.",
+      "acceptanceCriteria": [
+        "ralph.sh get_current_story() checks blockedBy before selecting a task",
+        "A story is ready when: passes == false AND all blockedBy story IDs have passes == true",
+        "If no ready stories exist but incomplete stories remain, log a warning about blocked tasks",
+        "Stories without blockedBy remain immediately selectable (backward compatible)",
+        "Typecheck passes (shellcheck ralph.sh)"
+      ],
+      "priority": 2,
+      "blockedBy": ["US-001"],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Create The Pin (specs/INDEX.md)",
+      "description": "As an AI agent, I want a searchable index of existing functionality so I can discover code before inventing duplicates.",
+      "acceptanceCriteria": [
+        "Create specs/INDEX.md with documented format: module name, keywords, file paths, optional spec link",
+        "Include at least 3 modules from Ralph codebase: Agent System, PRD Management, Progress Tracking",
+        "Keywords include synonyms, library names, and related terms (10-20 per module)",
+        "File is valid Markdown and easily parseable by agents",
+        "Document the Pin format in AGENTS.md"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Add Discovery Protocol to system instructions",
+      "description": "As a developer, I want agent system instructions to include discovery guidance so agents check existing code before implementing.",
+      "acceptanceCriteria": [
+        "Add DISCOVERY PROTOCOL section to system_instructions/system_instructions.md",
+        "Add same section to system_instructions/system_instructions_codex.md",
+        "Add same section to system_instructions/system_instructions_copilot.md",
+        "Protocol instructs: 1) Read specs/INDEX.md, 2) Search with keywords, 3) Read matching specs, 4) Only invent if truly new",
+        "Protocol is placed near the top of instructions (before implementation steps)"
+      ],
+      "priority": 4,
+      "blockedBy": ["US-003"],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Create context management library",
+      "description": "As Ralph, I want a context management library to track task state with dependency awareness so complex projects maintain coherence.",
+      "acceptanceCriteria": [
+        "Create lib/context.sh with functions: init_context(), get_ready_tasks(), update_task(), create_discovered_task()",
+        "get_ready_tasks() returns tasks that are: not done, not blocked",
+        "Context state stored in .ralph/ directory (auto-created)",
+        "import_prd() function converts existing prd.json to context format",
+        "Library can be sourced from ralph.sh like lib/common.sh",
+        "Typecheck passes (shellcheck lib/context.sh)"
+      ],
+      "priority": 5,
+      "blockedBy": ["US-001"],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Implement memory compaction",
+      "description": "As Ralph, I want automatic memory compaction so long-running sessions don't overflow context windows.",
+      "acceptanceCriteria": [
+        "Create lib/compaction.sh with compact_progress() function",
+        "Compaction triggers when progress.txt exceeds 400 lines (configurable threshold)",
+        "Compaction preserves: patterns section (first ~50 lines), recent entries (last ~200 lines)",
+        "Middle section is summarized to key bullet points",
+        "Compaction logs action to .ralph/compaction.log",
+        "Add pre_iteration_compact() hook that can be called from ralph.sh",
+        "Typecheck passes (shellcheck lib/compaction.sh)"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Create generate-pin script",
+      "description": "As a developer, I want a script to auto-generate specs/INDEX.md from codebase analysis so the Pin stays current.",
+      "acceptanceCriteria": [
+        "Create scripts/generate-pin.sh that scans codebase structure",
+        "Script identifies major directories and generates keyword suggestions",
+        "Output is valid specs/INDEX.md format with placeholder keywords",
+        "Script is idempotent (can be run multiple times safely)",
+        "Script is executable (chmod +x)",
+        "Document usage in README.md"
+      ],
+      "priority": 7,
+      "blockedBy": ["US-003"],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Implement context builder for dynamic injection",
+      "description": "As Ralph, I want dynamic context injection based on current task keywords so agents receive relevant context.",
+      "acceptanceCriteria": [
+        "Create lib/context-builder.sh with build_context() function",
+        "build_context() takes current task title/description as input",
+        "Extracts keywords from task and searches specs/INDEX.md for matches",
+        "Includes: Pin index, matching specs (first 100 lines), recent progress, codebase patterns",
+        "inject_context() function wraps base prompt with relevant context",
+        "Typecheck passes (shellcheck lib/context-builder.sh)"
+      ],
+      "priority": 8,
+      "blockedBy": ["US-003", "US-005"],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Integrate context system into ralph.sh",
+      "description": "As a developer, I want ralph.sh to optionally use the new context system so enhanced features are available.",
+      "acceptanceCriteria": [
+        "ralph.sh sources lib/context.sh if present (optional enhancement)",
+        "ralph.sh sources lib/compaction.sh if present and calls pre_iteration_compact()",
+        "Task selection uses get_ready_tasks() when available, falls back to current logic",
+        "All changes are backward compatible (Ralph works without new libs)",
+        "Typecheck passes (shellcheck ralph.sh)",
+        "Manual test: run ./ralph.sh 1 successfully with existing prd.json.example"
+      ],
+      "priority": 9,
+      "blockedBy": ["US-002", "US-005", "US-006"],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Update prd.json.example with blockedBy",
+      "description": "As a developer, I want the example PRD to demonstrate blockedBy usage so new users understand the feature.",
+      "acceptanceCriteria": [
+        "Update prd.json.example to include blockedBy field on stories US-002, US-003, US-004",
+        "US-002 depends on US-001, US-003 depends on US-001, US-004 depends on US-002",
+        "Example validates successfully with updated validate_prd_json()",
+        "Add brief comment in example explaining blockedBy usage"
+      ],
+      "priority": 10,
+      "blockedBy": ["US-001"],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Document context management in AGENTS.md",
+      "description": "As a developer, I want AGENTS.md to document the new context management features so future agents understand how to use them.",
+      "acceptanceCriteria": [
+        "Add Context Management section to AGENTS.md",
+        "Document: The Pin (specs/INDEX.md), blockedBy dependencies, memory compaction",
+        "Include examples of using discovery protocol",
+        "Document .ralph/ directory purpose and contents",
+        "Keep documentation concise (< 50 lines for new section)"
+      ],
+      "priority": 11,
+      "blockedBy": ["US-003", "US-005", "US-006"],
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

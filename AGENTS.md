@@ -100,3 +100,5 @@ npm run dev
 - Stories should be small enough to complete in one context window
 - Always update AGENTS.md with discovered patterns for future iterations
 - Agent selection is configured in `agent.yaml` with optional fallback support
+- Ralph lib scripts must be compatible with bash 3.2 (macOS default) - avoid associative arrays
+- Use jq's `// empty` operator when accessing optional fields to prevent errors

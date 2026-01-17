@@ -1,0 +1,15 @@
+# Ralph Progress Log
+Started: Sat Jan 17 14:06:48 PST 2026
+---
+## 2026-01-17 22:06 - US-001
+- Implemented blockedBy validation in lib/common.sh validate_prd_json()
+- Added validation for optional blockedBy array field on user stories
+- Validates all referenced story IDs exist in the PRD
+- Detects and logs warnings for circular dependencies
+- Backward compatible - stories without blockedBy work as before
+- Files changed: lib/common.sh
+- **Learnings for future iterations:**
+  - Bash 3.2 (macOS default) doesn't support associative arrays (declare -A) - use simple loops instead
+  - jq -r with empty filter (// empty) prevents errors when field doesn't exist
+  - Validation should warn but not fail on circular dependencies (design decision)
+---
