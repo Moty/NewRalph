@@ -2,7 +2,9 @@
 
 ## Overview
 
-Ralph is an autonomous AI agent loop that runs AI coding agents (Claude Code or Codex) repeatedly until all PRD items are complete. Each iteration is a fresh agent instance with clean context.
+Ralph is an autonomous AI agent loop that runs AI coding agents (Claude Code, Codex, GitHub Copilot, or Gemini) repeatedly until all PRD items are complete. Each iteration is a fresh agent instance with clean context.
+
+**Current Version:** See `.ralph-version` file or run `./setup-ralph.sh --version`
 
 ## Installation
 
@@ -33,6 +35,25 @@ cp -r system_instructions /path/to/project/
 # Or use WSL directly
 wsl bash ./setup-ralph.sh /mnt/c/path/to/project
 ```
+
+### Updating Existing Installations
+
+```bash
+# Update Ralph while preserving your configuration
+./setup-ralph.sh --update /path/to/project
+
+# Force overwrite everything (including agent.yaml)
+./setup-ralph.sh --force /path/to/project
+
+# Check installed version
+./setup-ralph.sh --version
+```
+
+Update mode:
+- Updates core scripts (`ralph.sh`, `create-prd.sh`, `lib/`, `skills/`)
+- Preserves `agent.yaml` settings (merges in new options)
+- Preserves `prd.json`, `progress.txt`, `AGENTS.md`
+- Creates backups in `.ralph-backup/`
 
 ## Commands
 
@@ -69,11 +90,12 @@ bash ralph.sh [max_iterations]
 
 ## Key Files
 
-- `setup-ralph.sh` - Automated installation script for any project
+- `setup-ralph.sh` - Automated installation/update script for any project
 - `create-prd.sh` - Automated PRD generation and conversion script
 - `ralph.sh` - The bash loop that spawns fresh agent instances
 - `ralph-models.sh` - Model listing and cache management utility
-- `agent.yaml` - Configuration for primary/fallback agent selection
+- `agent.yaml` - Configuration for primary/fallback agent and model selection
+- `.ralph-version` - Version tracking file (created in projects)
 - `system_instructions/system_instructions.md` - Instructions for Claude Code
 - `system_instructions/system_instructions_codex.md` - Instructions for Codex
 - `prd.json.example` - Example PRD format
@@ -95,11 +117,12 @@ npm run dev
 
 ## Patterns
 
-- Each iteration spawns a fresh agent instance (Claude Code or Codex) with clean context
+- Each iteration spawns a fresh agent instance (Claude Code, Codex, or GitHub Copilot) with clean context
 - Memory persists via git history, `progress.txt`, and `prd.json`
 - Stories should be small enough to complete in one context window
 - Always update AGENTS.md with discovered patterns for future iterations
 - Agent selection is configured in `agent.yaml` with optional fallback support
+- Model selection is also supported for GitHub Copilot via `agent.yaml`
 - Ralph lib scripts must be compatible with bash 3.2 (macOS default) - avoid associative arrays
 - Use jq's `// empty` operator when accessing optional fields to prevent errors
 

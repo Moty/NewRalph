@@ -1,6 +1,6 @@
 #!/bin/bash
-# Ralph Setup Script - Install Ralph into any project repository
-# Usage: ./setup-ralph.sh /path/to/your/project
+# Ralph Setup Script - Install or Update Ralph in any project repository
+# Usage: ./setup-ralph.sh [OPTIONS] /path/to/your/project
 
 set -e
 
@@ -8,26 +8,76 @@ set -e
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 RALPH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TARGET_DIR="${1:-.}"
+TARGET_DIR=""
+UPDATE_MODE=false
+FORCE_MODE=false
+
+# Ralph version - update this when making releases
+RALPH_VERSION="1.1.0"
+RALPH_VERSION_DATE="2026-01-17"
 
 # Show usage if help requested
-if [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
-  echo "Ralph Setup Script"
+show_help() {
+  echo "Ralph Setup Script v${RALPH_VERSION}"
   echo ""
-  echo "Usage: ./setup-ralph.sh [target-directory]"
+  echo "Usage: ./setup-ralph.sh [OPTIONS] [target-directory]"
   echo ""
-  echo "Installs Ralph into the specified project directory."
+  echo "Installs or updates Ralph in the specified project directory."
   echo "If no directory is specified, uses current directory."
   echo ""
-  echo "Example:"
-  echo "  ./setup-ralph.sh /path/to/my/project"
-  echo "  ./setup-ralph.sh ."
+  echo "Options:"
+  echo "  -h, --help     Show this help message"
+  echo "  --update       Update existing Ralph installation (preserves agent.yaml settings)"
+  echo "  --force        Force overwrite all files including agent.yaml"
+  echo "  --version      Show Ralph version"
+  echo ""
+  echo "Examples:"
+  echo "  ./setup-ralph.sh /path/to/my/project       # Fresh install"
+  echo "  ./setup-ralph.sh --update /path/to/project # Update existing installation"
+  echo "  ./setup-ralph.sh --update .                # Update current directory"
+  echo ""
+  echo "Update mode:"
+  echo "  - Updates core scripts (ralph.sh, create-prd.sh, lib/, skills/)"
+  echo "  - Preserves your agent.yaml configuration (merges new options)"
+  echo "  - Preserves prd.json, progress.txt, AGENTS.md"
+  echo "  - Creates backup of changed files in .ralph-backup/"
   echo ""
   exit 0
-fi
+}
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help)
+      show_help
+      ;;
+    --update)
+      UPDATE_MODE=true
+      shift
+      ;;
+    --force)
+      FORCE_MODE=true
+      shift
+      ;;
+    --version)
+      echo "Ralph v${RALPH_VERSION} (${RALPH_VERSION_DATE})"
+      exit 0
+      ;;
+    *)
+      if [ -z "$TARGET_DIR" ]; then
+        TARGET_DIR="$1"
+      fi
+      shift
+      ;;
+  esac
+done
+
+# Default to current directory if not specified
+TARGET_DIR="${TARGET_DIR:-.}"
 
 # ---- Validation -----------------------------------------------
 
@@ -44,6 +94,99 @@ if [ ! -d "$TARGET_DIR/.git" ]; then
     exit 1
   fi
 fi
+
+# ---- Detect existing installation -----------------------------
+
+EXISTING_VERSION=""
+EXISTING_INSTALL=false
+VERSION_FILE="$TARGET_DIR/.ralph-version"
+
+if [ -f "$VERSION_FILE" ]; then
+  EXISTING_VERSION=$(cat "$VERSION_FILE" 2>/dev/null || echo "unknown")
+  EXISTING_INSTALL=true
+elif [ -f "$TARGET_DIR/ralph.sh" ]; then
+  EXISTING_VERSION="pre-1.0 (no version file)"
+  EXISTING_INSTALL=true
+fi
+
+if [ "$EXISTING_INSTALL" = true ]; then
+  echo ""
+  echo -e "${CYAN}Existing Ralph installation detected${NC}"
+  echo "  Installed version: ${YELLOW}${EXISTING_VERSION}${NC}"
+  echo "  New version:       ${GREEN}${RALPH_VERSION}${NC}"
+  echo ""
+  
+  if [ "$UPDATE_MODE" = false ] && [ "$FORCE_MODE" = false ]; then
+    echo -e "${YELLOW}Use --update to update while preserving your configuration${NC}"
+    echo -e "${YELLOW}Use --force to overwrite everything${NC}"
+    echo ""
+    read -p "Continue with update mode? (Y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
+      exit 0
+    fi
+    UPDATE_MODE=true
+  fi
+fi
+
+# ---- Backup function for updates -----------------------------
+
+BACKUP_DIR="$TARGET_DIR/.ralph-backup/$(date +%Y%m%d-%H%M%S)"
+BACKUP_CREATED=false
+
+backup_file() {
+  local file="$1"
+  if [ -f "$TARGET_DIR/$file" ]; then
+    if [ "$BACKUP_CREATED" = false ]; then
+      mkdir -p "$BACKUP_DIR"
+      BACKUP_CREATED=true
+    fi
+    cp "$TARGET_DIR/$file" "$BACKUP_DIR/"
+    echo "  → Backed up: $file"
+  fi
+}
+
+# ---- Merge agent.yaml function --------------------------------
+
+merge_agent_yaml() {
+  local old_yaml="$TARGET_DIR/agent.yaml"
+  local new_yaml="$RALPH_DIR/agent.yaml"
+  local temp_yaml="$TARGET_DIR/agent.yaml.new"
+  
+  if [ ! -f "$old_yaml" ]; then
+    # No existing config, just copy
+    cp "$new_yaml" "$old_yaml"
+    return
+  fi
+  
+  # Backup existing
+  backup_file "agent.yaml"
+  
+  # Extract user's current settings
+  local user_primary=$(yq '.agent.primary // "auto"' "$old_yaml" 2>/dev/null)
+  local user_fallback=$(yq '.agent.fallback // ""' "$old_yaml" 2>/dev/null)
+  local user_claude_model=$(yq '.claude-code.model // ""' "$old_yaml" 2>/dev/null)
+  local user_codex_model=$(yq '.codex.model // ""' "$old_yaml" 2>/dev/null)
+  local user_copilot_model=$(yq '.github-copilot.model // ""' "$old_yaml" 2>/dev/null)
+  local user_copilot_approval=$(yq '.github-copilot.tool-approval // ""' "$old_yaml" 2>/dev/null)
+  local user_gemini_model=$(yq '.gemini.model // ""' "$old_yaml" 2>/dev/null)
+  
+  # Start with new template (has new options)
+  cp "$new_yaml" "$temp_yaml"
+  
+  # Restore user's settings
+  [ -n "$user_primary" ] && [ "$user_primary" != "null" ] && yq -i ".agent.primary = \"$user_primary\"" "$temp_yaml"
+  [ -n "$user_fallback" ] && [ "$user_fallback" != "null" ] && [ "$user_fallback" != "" ] && yq -i ".agent.fallback = \"$user_fallback\"" "$temp_yaml"
+  [ -n "$user_claude_model" ] && [ "$user_claude_model" != "null" ] && yq -i ".claude-code.model = \"$user_claude_model\"" "$temp_yaml"
+  [ -n "$user_codex_model" ] && [ "$user_codex_model" != "null" ] && yq -i ".codex.model = \"$user_codex_model\"" "$temp_yaml"
+  [ -n "$user_copilot_model" ] && [ "$user_copilot_model" != "null" ] && yq -i ".github-copilot.model = \"$user_copilot_model\"" "$temp_yaml"
+  [ -n "$user_copilot_approval" ] && [ "$user_copilot_approval" != "null" ] && yq -i ".github-copilot.tool-approval = \"$user_copilot_approval\"" "$temp_yaml"
+  [ -n "$user_gemini_model" ] && [ "$user_gemini_model" != "null" ] && yq -i ".gemini.model = \"$user_gemini_model\"" "$temp_yaml"
+  
+  # Replace old with merged
+  mv "$temp_yaml" "$old_yaml"
+  echo -e "  ${GREEN}✓ Merged agent.yaml (preserved your settings, added new options)${NC}"
+}
 
 # ---- Check dependencies ---------------------------------------
 
@@ -92,7 +235,15 @@ fi
 # ---- Copy files -----------------------------------------------
 
 echo ""
-echo "Installing Ralph into: $TARGET_DIR"
+if [ "$UPDATE_MODE" = true ]; then
+  echo -e "${CYAN}Updating Ralph in: $TARGET_DIR${NC}"
+  echo ""
+  if [ "$BACKUP_CREATED" = false ]; then
+    echo "Creating backups..."
+  fi
+else
+  echo "Installing Ralph into: $TARGET_DIR"
+fi
 echo ""
 
 # Copy main script
@@ -110,9 +261,14 @@ echo "→ Copying ralph-models.sh"
 cp "$RALPH_DIR/ralph-models.sh" "$TARGET_DIR/"
 chmod +x "$TARGET_DIR/ralph-models.sh"
 
-# Copy agent configuration
-echo "→ Copying agent.yaml"
-cp "$RALPH_DIR/agent.yaml" "$TARGET_DIR/"
+# Copy agent configuration (with merge for updates)
+if [ "$UPDATE_MODE" = true ] && [ "$FORCE_MODE" = false ]; then
+  echo "→ Updating agent.yaml (preserving your settings)"
+  merge_agent_yaml
+else
+  echo "→ Copying agent.yaml"
+  cp "$RALPH_DIR/agent.yaml" "$TARGET_DIR/"
+fi
 
 # Copy system instructions
 echo "→ Copying system_instructions/"
@@ -199,6 +355,8 @@ if [ -f "$TARGET_DIR/.gitignore" ]; then
 
 # Ralph
 .last-branch
+.ralph-version
+.ralph-backup/
 progress.txt
 ralph.log
 .ralph-models-cache.json
@@ -209,6 +367,8 @@ else
   cat > "$TARGET_DIR/.gitignore" << 'EOF'
 # Ralph
 .last-branch
+.ralph-version
+.ralph-backup/
 progress.txt
 ralph.log
 .ralph-models-cache.json
@@ -372,72 +532,77 @@ fi
 
 # ---- Configure agent ------------------------------------------
 
-echo ""
-echo "Configuring agent preference..."
-
-AGENT_COUNT=0
-[ "$HAS_CLAUDE" = true ] && ((AGENT_COUNT++))
-[ "$HAS_CODEX" = true ] && ((AGENT_COUNT++))
-[ "$HAS_COPILOT" = true ] && ((AGENT_COUNT++))
-
-if [ "$AGENT_COUNT" -gt 1 ]; then
-  echo "Multiple AI agents are available."
-  echo "Which would you like as primary?"
-  OPTION=1
-  [ "$HAS_CLAUDE" = true ] && echo "  $OPTION) Claude Code" && CLAUDE_OPTION=$OPTION && ((OPTION++))
-  [ "$HAS_CODEX" = true ] && echo "  $OPTION) Codex" && CODEX_OPTION=$OPTION && ((OPTION++))
-  [ "$HAS_COPILOT" = true ] && echo "  $OPTION) GitHub Copilot CLI" && COPILOT_OPTION=$OPTION && ((OPTION++))
-  
-  read -p "Enter choice (1-$((OPTION-1))): " -n 1 -r CHOICE
+# Skip agent configuration in update mode (settings are preserved)
+if [ "$UPDATE_MODE" = true ] && [ "$FORCE_MODE" = false ]; then
   echo ""
-  
-  PRIMARY_SET=false
-  FALLBACK_SET=false
-  
-  if [ "$HAS_CLAUDE" = true ] && [ "$CHOICE" == "$CLAUDE_OPTION" ]; then
-    yq -i '.agent.primary = "claude-code"' "$TARGET_DIR/agent.yaml"
-    PRIMARY_SET=true
-    # Set fallback to first available alternative
-    if [ "$HAS_CODEX" = true ]; then
-      yq -i '.agent.fallback = "codex"' "$TARGET_DIR/agent.yaml"
-      FALLBACK_SET=true
-    elif [ "$HAS_COPILOT" = true ]; then
-      yq -i '.agent.fallback = "github-copilot"' "$TARGET_DIR/agent.yaml"
-      FALLBACK_SET=true
+  echo -e "${GREEN}✓ Agent configuration preserved from existing installation${NC}"
+else
+  echo ""
+  echo "Configuring agent preference..."
+
+  AGENT_COUNT=0
+  [ "$HAS_CLAUDE" = true ] && ((AGENT_COUNT++))
+  [ "$HAS_CODEX" = true ] && ((AGENT_COUNT++))
+  [ "$HAS_COPILOT" = true ] && ((AGENT_COUNT++))
+
+  if [ "$AGENT_COUNT" -gt 1 ]; then
+    echo "Multiple AI agents are available."
+    echo "Which would you like as primary?"
+    OPTION=1
+    [ "$HAS_CLAUDE" = true ] && echo "  $OPTION) Claude Code" && CLAUDE_OPTION=$OPTION && ((OPTION++))
+    [ "$HAS_CODEX" = true ] && echo "  $OPTION) Codex" && CODEX_OPTION=$OPTION && ((OPTION++))
+    [ "$HAS_COPILOT" = true ] && echo "  $OPTION) GitHub Copilot CLI" && COPILOT_OPTION=$OPTION && ((OPTION++))
+    
+    read -p "Enter choice (1-$((OPTION-1))): " -n 1 -r CHOICE
+    echo ""
+    
+    PRIMARY_SET=false
+    FALLBACK_SET=false
+    
+    if [ "$HAS_CLAUDE" = true ] && [ "$CHOICE" == "$CLAUDE_OPTION" ]; then
+      yq -i '.agent.primary = "claude-code"' "$TARGET_DIR/agent.yaml"
+      PRIMARY_SET=true
+      # Set fallback to first available alternative
+      if [ "$HAS_CODEX" = true ]; then
+        yq -i '.agent.fallback = "codex"' "$TARGET_DIR/agent.yaml"
+        FALLBACK_SET=true
+      elif [ "$HAS_COPILOT" = true ]; then
+        yq -i '.agent.fallback = "github-copilot"' "$TARGET_DIR/agent.yaml"
+        FALLBACK_SET=true
+      fi
+    elif [ "$HAS_CODEX" = true ] && [ "$CHOICE" == "$CODEX_OPTION" ]; then
+      yq -i '.agent.primary = "codex"' "$TARGET_DIR/agent.yaml"
+      PRIMARY_SET=true
+      # Set fallback to first available alternative
+      if [ "$HAS_CLAUDE" = true ]; then
+        yq -i '.agent.fallback = "claude-code"' "$TARGET_DIR/agent.yaml"
+        FALLBACK_SET=true
+      elif [ "$HAS_COPILOT" = true ]; then
+        yq -i '.agent.fallback = "github-copilot"' "$TARGET_DIR/agent.yaml"
+        FALLBACK_SET=true
+      fi
+    elif [ "$HAS_COPILOT" = true ] && [ "$CHOICE" == "$COPILOT_OPTION" ]; then
+      yq -i '.agent.primary = "github-copilot"' "$TARGET_DIR/agent.yaml"
+      PRIMARY_SET=true
+      # Set fallback to first available alternative
+      if [ "$HAS_CLAUDE" = true ]; then
+        yq -i '.agent.fallback = "claude-code"' "$TARGET_DIR/agent.yaml"
+        FALLBACK_SET=true
+      elif [ "$HAS_CODEX" = true ]; then
+        yq -i '.agent.fallback = "codex"' "$TARGET_DIR/agent.yaml"
+        FALLBACK_SET=true
+      fi
     fi
-  elif [ "$HAS_CODEX" = true ] && [ "$CHOICE" == "$CODEX_OPTION" ]; then
-    yq -i '.agent.primary = "codex"' "$TARGET_DIR/agent.yaml"
-    PRIMARY_SET=true
-    # Set fallback to first available alternative
-    if [ "$HAS_CLAUDE" = true ]; then
-      yq -i '.agent.fallback = "claude-code"' "$TARGET_DIR/agent.yaml"
-      FALLBACK_SET=true
-    elif [ "$HAS_COPILOT" = true ]; then
-      yq -i '.agent.fallback = "github-copilot"' "$TARGET_DIR/agent.yaml"
-      FALLBACK_SET=true
-    fi
-  elif [ "$HAS_COPILOT" = true ] && [ "$CHOICE" == "$COPILOT_OPTION" ]; then
-    yq -i '.agent.primary = "github-copilot"' "$TARGET_DIR/agent.yaml"
-    PRIMARY_SET=true
-    # Set fallback to first available alternative
-    if [ "$HAS_CLAUDE" = true ]; then
-      yq -i '.agent.fallback = "claude-code"' "$TARGET_DIR/agent.yaml"
-      FALLBACK_SET=true
-    elif [ "$HAS_CODEX" = true ]; then
-      yq -i '.agent.fallback = "codex"' "$TARGET_DIR/agent.yaml"
-      FALLBACK_SET=true
-    fi
-  fi
-  
-  if [ "$PRIMARY_SET" = true ]; then
-    PRIMARY_NAME=$(yq '.agent.primary' "$TARGET_DIR/agent.yaml")
-    if [ "$FALLBACK_SET" = true ]; then
-      FALLBACK_NAME=$(yq '.agent.fallback' "$TARGET_DIR/agent.yaml")
-      echo -e "${GREEN}✓ Configured $PRIMARY_NAME as primary, $FALLBACK_NAME as fallback${NC}"
+    
+    if [ "$PRIMARY_SET" = true ]; then
+      PRIMARY_NAME=$(yq '.agent.primary' "$TARGET_DIR/agent.yaml")
+      if [ "$FALLBACK_SET" = true ]; then
+        FALLBACK_NAME=$(yq '.agent.fallback' "$TARGET_DIR/agent.yaml")
+        echo -e "${GREEN}✓ Configured $PRIMARY_NAME as primary, $FALLBACK_NAME as fallback${NC}"
+      else
+        echo -e "${GREEN}✓ Configured $PRIMARY_NAME as primary (no fallback)${NC}"
+      fi
     else
-      echo -e "${GREEN}✓ Configured $PRIMARY_NAME as primary (no fallback)${NC}"
-    fi
-  else
     # Invalid choice - use first available agent
     echo -e "${YELLOW}⚠ Invalid choice, using first available agent as default${NC}"
     if [ "$HAS_CLAUDE" = true ]; then
@@ -451,19 +616,20 @@ if [ "$AGENT_COUNT" -gt 1 ]; then
       echo -e "${GREEN}✓ Configured GitHub Copilot CLI as primary${NC}"
     fi
   fi
-elif [ "$HAS_CLAUDE" = true ]; then
-  yq -i '.agent.primary = "claude-code"' "$TARGET_DIR/agent.yaml"
-  yq -i 'del(.agent.fallback)' "$TARGET_DIR/agent.yaml"
-  echo -e "${GREEN}✓ Configured Claude Code as primary (no fallback)${NC}"
-elif [ "$HAS_CODEX" = true ]; then
-  yq -i '.agent.primary = "codex"' "$TARGET_DIR/agent.yaml"
-  yq -i 'del(.agent.fallback)' "$TARGET_DIR/agent.yaml"
-  echo -e "${GREEN}✓ Configured Codex as primary (no fallback)${NC}"
-elif [ "$HAS_COPILOT" = true ]; then
-  yq -i '.agent.primary = "github-copilot"' "$TARGET_DIR/agent.yaml"
-  yq -i 'del(.agent.fallback)' "$TARGET_DIR/agent.yaml"
-  echo -e "${GREEN}✓ Configured GitHub Copilot CLI as primary (no fallback)${NC}"
-fi
+  elif [ "$HAS_CLAUDE" = true ]; then
+    yq -i '.agent.primary = "claude-code"' "$TARGET_DIR/agent.yaml"
+    yq -i 'del(.agent.fallback)' "$TARGET_DIR/agent.yaml"
+    echo -e "${GREEN}✓ Configured Claude Code as primary (no fallback)${NC}"
+  elif [ "$HAS_CODEX" = true ]; then
+    yq -i '.agent.primary = "codex"' "$TARGET_DIR/agent.yaml"
+    yq -i 'del(.agent.fallback)' "$TARGET_DIR/agent.yaml"
+    echo -e "${GREEN}✓ Configured Codex as primary (no fallback)${NC}"
+  elif [ "$HAS_COPILOT" = true ]; then
+    yq -i '.agent.primary = "github-copilot"' "$TARGET_DIR/agent.yaml"
+    yq -i 'del(.agent.fallback)' "$TARGET_DIR/agent.yaml"
+    echo -e "${GREEN}✓ Configured GitHub Copilot CLI as primary (no fallback)${NC}"
+  fi
+fi  # End of UPDATE_MODE check
 
 # ---- Refresh available models ---------------------------------
 
@@ -499,63 +665,100 @@ fi
 
 # ---- Setup complete -------------------------------------------
 
+# Write version file
+echo "$RALPH_VERSION" > "$TARGET_DIR/.ralph-version"
+
 echo ""
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN}✓ Ralph setup complete!${NC}"
+if [ "$UPDATE_MODE" = true ]; then
+  echo -e "${GREEN}✓ Ralph updated to v${RALPH_VERSION}!${NC}"
+else
+  echo -e "${GREEN}✓ Ralph v${RALPH_VERSION} setup complete!${NC}"
+fi
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-echo "Next steps:"
-echo ""
-echo "1. Edit prd.json to define your project requirements:"
-echo "   ${YELLOW}cd $TARGET_DIR && vim prd.json${NC}"
-echo ""
-echo "2. Review and customize agent.yaml if needed:"
-echo "   ${YELLOW}vim agent.yaml${NC}"
-echo ""
-echo "3. Run Ralph:"
-if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]] || grep -qi microsoft /proc/version 2>/dev/null; then
-  echo "   ${YELLOW}ralph.cmd${NC}               # Windows (PowerShell/cmd)"
-  echo "   ${YELLOW}bash ralph.sh${NC}           # WSL/Git Bash"
+
+if [ "$BACKUP_CREATED" = true ]; then
+  echo -e "Backups saved to: ${CYAN}${BACKUP_DIR}${NC}"
+  echo ""
+fi
+
+if [ "$UPDATE_MODE" = true ]; then
+  echo "Updated files:"
+  echo "  • ralph.sh, create-prd.sh, ralph-models.sh"
+  echo "  • system_instructions/"
+  echo "  • lib/"
+  echo "  • skills/"
+  if [ "$FORCE_MODE" = false ]; then
+    echo ""
+    echo -e "Preserved: ${YELLOW}agent.yaml${NC} (settings merged), prd.json, progress.txt, AGENTS.md"
+  fi
+  echo ""
+  echo "Run ${CYAN}./ralph.sh${NC} to continue with updated version"
 else
-  echo "   ${YELLOW}./ralph.sh${NC}"
-fi
-echo ""
-echo "Optional flags:"
-if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]] || grep -qi microsoft /proc/version 2>/dev/null; then
-  echo "   ${YELLOW}ralph.cmd 20 --verbose${NC}         # Run 20 iterations with verbose logging"
-  echo "   ${YELLOW}ralph.cmd --timeout 7200${NC}       # Set 2-hour timeout per iteration"
-else
-  echo "   ${YELLOW}./ralph.sh 20 --verbose${NC}         # Run 20 iterations with verbose logging"
-  echo "   ${YELLOW}./ralph.sh --timeout 7200${NC}       # Set 2-hour timeout per iteration"
-fi
-echo ""
-echo "Files created in $TARGET_DIR:"
-echo "  • ralph.sh - Main execution script"
-if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]] || grep -qi microsoft /proc/version 2>/dev/null; then
-  echo "  • ralph.cmd - Windows wrapper for ralph.sh"
-  echo "  • create-prd.cmd - Windows wrapper for create-prd.sh"
-  echo "  • ralph-models.cmd - Windows wrapper for ralph-models.sh"
-fi
-echo "  • agent.yaml - Agent configuration"
-echo "  • system_instructions/ - Agent prompts"
-echo "  • lib/ - Validation and utility functions"
-echo "  • prd.json - Project requirements"
-echo "  • progress.txt - Iteration log"
-echo "  • ralph.log - Debug log (verbose mode)"
-echo "  • AGENTS.md - Pattern documentation"
-echo "  • archive/ - Previous run backups"
-if [ -d "$RALPH_DIR/skills" ]; then
-  echo "  • skills/ - Reusable skills library"
+  echo "Next steps:"
+  echo ""
+  echo "1. Edit prd.json to define your project requirements:"
+  echo "   ${YELLOW}cd $TARGET_DIR && vim prd.json${NC}"
+  echo ""
+  echo "2. Review and customize agent.yaml if needed:"
+  echo "   ${YELLOW}vim agent.yaml${NC}"
+  echo ""
+  echo "3. Run Ralph:"
+  if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]] || grep -qi microsoft /proc/version 2>/dev/null; then
+    echo "   ${YELLOW}ralph.cmd${NC}               # Windows (PowerShell/cmd)"
+    echo "   ${YELLOW}bash ralph.sh${NC}           # WSL/Git Bash"
+  else
+    echo "   ${YELLOW}./ralph.sh${NC}"
+  fi
+  echo ""
+  echo "Optional flags:"
+  if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]] || grep -qi microsoft /proc/version 2>/dev/null; then
+    echo "   ${YELLOW}ralph.cmd 20 --verbose${NC}         # Run 20 iterations with verbose logging"
+    echo "   ${YELLOW}ralph.cmd --timeout 7200${NC}       # Set 2-hour timeout per iteration"
+  else
+    echo "   ${YELLOW}./ralph.sh 20 --verbose${NC}         # Run 20 iterations with verbose logging"
+    echo "   ${YELLOW}./ralph.sh --timeout 7200${NC}       # Set 2-hour timeout per iteration"
+  fi
+  echo ""
+  echo "Files created in $TARGET_DIR:"
+  echo "  • ralph.sh - Main execution script"
+  if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]] || grep -qi microsoft /proc/version 2>/dev/null; then
+    echo "  • ralph.cmd - Windows wrapper for ralph.sh"
+    echo "  • create-prd.cmd - Windows wrapper for create-prd.sh"
+    echo "  • ralph-models.cmd - Windows wrapper for ralph-models.sh"
+  fi
+  echo "  • agent.yaml - Agent configuration"
+  echo "  • system_instructions/ - Agent prompts"
+  echo "  • lib/ - Validation and utility functions"
+  echo "  • prd.json - Project requirements"
+  echo "  • progress.txt - Iteration log"
+  echo "  • ralph.log - Debug log (verbose mode)"
+  echo "  • AGENTS.md - Pattern documentation"
+  echo "  • archive/ - Previous run backups"
+  if [ -d "$RALPH_DIR/skills" ]; then
+    echo "  • skills/ - Reusable skills library"
+  fi
 fi
 echo ""
 
 
-# ---- Initial Git Commit ---------------------------------------
+# ---- Git Commit -----------------------------------------------
 
 if [ -d "$TARGET_DIR/.git" ]; then
-  echo "Creating initial commit with Ralph setup..."
   cd "$TARGET_DIR"
-  git add -A && git commit -m "Initial commit with Ralph setup"
-  echo -e "${GREEN}✓ Initial commit created${NC}"
+  if [ "$UPDATE_MODE" = true ]; then
+    # Only commit if there are changes
+    if ! git diff --quiet HEAD -- ralph.sh create-prd.sh ralph-models.sh agent.yaml lib/ skills/ system_instructions/ 2>/dev/null; then
+      echo "Creating commit with Ralph update..."
+      git add ralph.sh create-prd.sh ralph-models.sh agent.yaml lib/ skills/ system_instructions/ .ralph-version 2>/dev/null || true
+      git commit -m "Update Ralph to v${RALPH_VERSION}" 2>/dev/null || true
+      echo -e "${GREEN}✓ Update committed${NC}"
+    fi
+  else
+    echo "Creating initial commit with Ralph setup..."
+    git add -A && git commit -m "Initial commit with Ralph v${RALPH_VERSION} setup"
+    echo -e "${GREEN}✓ Initial commit created${NC}"
+  fi
   echo ""
 fi

@@ -143,9 +143,28 @@ rm -rf system_instructions/ skills/ archive/
 The `setup-ralph.sh` script handles everything:
 
 ```bash
-# From the Ralph repository
+# Fresh install
 ./setup-ralph.sh /path/to/your/project
+
+# Update existing installation (preserves your config)
+./setup-ralph.sh --update /path/to/your/project
+
+# Check Ralph version
+./setup-ralph.sh --version
 ```
+
+**Options:**
+- `--update` - Update existing installation while preserving `agent.yaml` settings
+- `--force` - Force overwrite all files including configuration
+- `--version` - Show Ralph version
+- `-h, --help` - Show help
+
+**Update mode features:**
+- Updates core scripts (`ralph.sh`, `create-prd.sh`, `lib/`, `skills/`)
+- Preserves your `agent.yaml` configuration (merges new options)
+- Preserves `prd.json`, `progress.txt`, `AGENTS.md`
+- Creates timestamped backups in `.ralph-backup/`
+- Writes version to `.ralph-version` for tracking
 
 This will copy all necessary files and guide you through configuration.
 
@@ -197,6 +216,7 @@ codex:
 
 # GitHub Copilot CLI settings
 github-copilot:
+  model: auto            # Options: claude-opus-4.5, claude-sonnet-4.5, gpt-5.2-codex, auto
   tool-approval: allow-all  # allow-all grants all tool permissions automatically
   # deny-tools:             # Optional: specific tools to deny
   #   - "shell (rm)"
@@ -210,7 +230,9 @@ gemini:
 ```
 
 **Model Selection:**
-- `claude-sonnet-4-20250514` - Latest Claude Sonnet (recommended)
+- `claude-sonnet-4-20250514` - Latest Claude Sonnet (recommended for Claude Code)
+- `claude-opus-4.5` - Best quality for complex tasks (available in Copilot CLI)
+- `claude-sonnet-4.5` - Balanced quality/speed (available in Copilot CLI)
 - `codex-5.2` - Latest Codex (recommended)
 - `gpt-4o` / `o1` - Alternatives if `codex-5.2` unavailable
 
@@ -382,7 +404,7 @@ your-project/
 
 **Git Tracking:**
 - ✓ Commit: `ralph.sh`, `create-prd.sh`, `ralph-models.sh`, `agent.yaml`, `prd.json`, `prd.json.example`, `AGENTS.md`, `system_instructions/`, `skills/`
-- ✗ Ignore: `progress.txt`, `.last-branch`, `archive/`, `.ralph-models-cache.json` (automatically added to .gitignore)
+- ✗ Ignore: `progress.txt`, `.last-branch`, `.ralph-version`, `.ralph-backup/`, `archive/`, `.ralph-models-cache.json` (automatically added to .gitignore)
 
 ## Key Files
 
@@ -445,6 +467,36 @@ Too big (split these):
 - "Build the entire dashboard"
 - "Add authentication"
 - "Refactor the API"
+
+### Story Dependencies with blockedBy
+
+User stories can declare dependencies on other stories using the `blockedBy` field:
+
+```json
+{
+  "id": "US-002",
+  "title": "Display priority indicator",
+  "blockedBy": ["US-001"],
+  "passes": false
+}
+```
+
+**How it works:**
+- Stories in `blockedBy` must complete (`passes: true`) before the story can start
+- Ralph automatically skips blocked stories and picks the next ready one
+- The `create-prd.sh` script generates `blockedBy` based on detected dependencies
+
+**Common dependency patterns:**
+| Story Type | Typically Blocked By |
+|------------|---------------------|
+| Database schema | Nothing (foundational) |
+| Backend API | Schema stories it reads/writes |
+| UI component | Backend APIs it calls |
+| Integration tests | All component stories |
+
+**Validation:**
+- Every ID in `blockedBy` must exist in the PRD
+- Circular dependencies are detected and warned about (A blocks B, B blocks A)
 
 ### AGENTS.md Updates Are Critical
 
