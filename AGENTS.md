@@ -119,3 +119,64 @@ The Pin (`specs/INDEX.md`) is a searchable index of existing functionality to pr
 3. When adding new modules - create new entries with comprehensive keywords
 
 **Maintenance**: Keep keywords current as the codebase evolves
+
+## Context Management
+
+Ralph includes optional context management features for complex projects.
+
+### blockedBy Dependencies
+
+User stories support a `blockedBy` field to manage task dependencies:
+
+```json
+{
+  "id": "US-002",
+  "title": "Display priority indicator",
+  "blockedBy": ["US-001"],
+  "passes": false
+}
+```
+
+- Stories in `blockedBy` must complete before the story can start
+- Validation checks all referenced story IDs exist
+- Ralph warns about circular dependencies (A blocks B, B blocks A)
+- See `prd.json.example` for usage examples
+
+### Memory Compaction
+
+The compaction library (`lib/compaction.sh`) prevents context overflow in long-running sessions:
+
+- Auto-triggers when `progress.txt` exceeds 400 lines (configurable)
+- Preserves patterns section (first ~50 lines) and recent entries (last ~200 lines)
+- Middle section summarized to key bullet points
+- Creates backup files before compaction
+- Logs actions to `.ralph/compaction.log`
+
+**Configuration**:
+```bash
+export RALPH_COMPACTION_THRESHOLD=400  # Line count trigger
+export RALPH_PRESERVE_START=50         # Lines to preserve from start
+export RALPH_PRESERVE_END=200          # Lines to preserve from end
+```
+
+### Context State Directory
+
+The `.ralph/` directory stores context management state:
+
+- `context.json` - Task state with dependency awareness (if using lib/context.sh)
+- `compaction.log` - Memory compaction history
+- Auto-created when context libraries are used
+- Gitignored by default
+
+### Discovery Protocol
+
+Before implementing new functionality, agents follow the Discovery Protocol:
+
+1. **Read specs/INDEX.md** - The Pin contains searchable index
+2. **Search with keywords** - Extract keywords from task and search index
+3. **Read matching specs** - Review referenced files/specs
+4. **Only invent if truly new** - Use existing code when possible
+
+**Example**: Task mentions "validation" → search The Pin for "validation", "validate", "checking" → use existing validation utilities if found
+
+This protocol is enforced in all system instructions files.
