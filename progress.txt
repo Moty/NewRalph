@@ -69,3 +69,101 @@ Started: Sat Jan 17 14:06:48 PST 2026
   - import_prd() enables migration from prd.json to context-based workflow
   - Library is fully compatible with bash 3.2 (no associative arrays)
 ---
+## 2026-01-17 22:17 - US-006
+- Created lib/compaction.sh memory compaction library
+- Implemented compact_progress() - compacts progress.txt when exceeding threshold (default 400 lines)
+- Preserves patterns section (first ~50 lines) and recent entries (last ~200 lines)
+- Middle section summarized to key bullet points with story IDs and learnings
+- Compaction creates backup file and logs actions to .ralph/compaction.log
+- Implemented pre_iteration_compact() hook for ralph.sh integration
+- Thresholds are configurable via environment variables (RALPH_COMPACTION_THRESHOLD, RALPH_PRESERVE_START, RALPH_PRESERVE_END)
+- Files changed: lib/compaction.sh (new)
+- **Learnings for future iterations:**
+  - Memory compaction prevents context overflow in long-running sessions
+  - Preserving patterns section maintains codebase knowledge across compactions
+  - Recent entries (last 200 lines) keep recent context fresh
+  - Middle section extraction uses grep to identify story IDs and key learnings
+  - Backup files created before compaction to prevent data loss
+  - mktemp used for safe temporary file handling
+---
+## 2026-01-17 22:17 - US-007
+- Created scripts/generate-pin.sh for auto-generating specs/INDEX.md
+- Script scans codebase structure and identifies major directories
+- Generates keyword suggestions from filenames (removes common extensions)
+- Output is valid specs/INDEX.md format with placeholder keywords
+- Script is idempotent - checks for changes before updating file
+- Script is executable and syntax-checked
+- Updated README.md to document The Pin and generate-pin script usage
+- Added section explaining Discovery Index maintenance
+- Files changed: scripts/generate-pin.sh (new), README.md
+- **Learnings for future iterations:**
+  - generate-pin.sh extracts keywords from file/directory names automatically
+  - Uses find + sed + tr pipeline to clean and deduplicate keywords
+  - Idempotent via diff check - only updates when content changes
+  - Auto-generated files should have note recommending manual refinement
+  - Script excludes node_modules and .git directories from scanning
+---
+## 2026-01-17 22:18 - US-008
+- Created lib/context-builder.sh for dynamic context injection
+- Implemented extract_keywords() - extracts meaningful keywords from task text
+- Implemented search_pin() - searches The Pin for modules matching keywords
+- Implemented get_module_content() - extracts module details from The Pin
+- Implemented build_context() - builds comprehensive context (Pin + matching modules + patterns + recent progress)
+- Implemented inject_context() - wraps base prompt with relevant context
+- Context includes: Pin index (30 lines), matching modules (100 lines each), patterns section, recent progress (50 lines)
+- Keyword extraction filters common words and keeps terms 3+ characters
+- Files changed: lib/context-builder.sh (new)
+- **Learnings for future iterations:**
+  - Context builder enables intelligent context injection based on task keywords
+  - Keyword extraction removes stop words (the, and, or, etc.) for better matching
+  - Pin search uses case-insensitive grep to find matching modules
+  - awk used to extract module sections between ### headers and --- separators
+  - inject_context() prepends context to base prompt for enhanced agent awareness
+---
+## 2026-01-17 22:19 - US-009
+- Integrated context system into ralph.sh
+- Added optional loading of lib/context.sh and lib/compaction.sh
+- Updated get_current_story() to use get_ready_tasks() when context system available
+- Added pre_iteration_compact() call before each iteration when compaction enabled
+- All changes are backward compatible - Ralph works without new libraries
+- Added CONTEXT_SYSTEM_ENABLED and COMPACTION_ENABLED flags
+- Falls back to traditional PRD-based selection when context system unavailable
+- Files changed: ralph.sh
+- **Learnings for future iterations:**
+  - Optional library loading enables backward compatibility
+  - Feature flags (CONTEXT_SYSTEM_ENABLED) control optional functionality
+  - Fallback pattern: try new system, fall back to old if unavailable
+  - pre_iteration_compact() runs before each iteration to prevent overflow
+  - Context system get_ready_tasks() can be used as drop-in replacement
+---
+## 2026-01-17 22:20 - US-010
+- Updated prd.json.example to demonstrate blockedBy usage
+- Added blockedBy field on stories US-002, US-003, US-004
+- US-002 and US-003 depend on US-001 (database field must exist first)
+- US-004 depends on US-002 (UI must display priority before filtering)
+- Added explanatory notes to demonstrate why dependencies exist
+- Updated description to mention blockedBy demonstration
+- Validated successfully with validate_prd_json()
+- Files changed: prd.json.example
+- **Learnings for future iterations:**
+  - Example PRDs should demonstrate all available features
+  - blockedBy creates clear dependency chains (US-001 → US-002 → US-004)
+  - Notes field useful for explaining dependency rationale
+  - Example validates that blockedBy references exist and are valid
+---
+## 2026-01-17 22:21 - US-011
+- Added Context Management section to AGENTS.md
+- Documented blockedBy dependencies with JSON example
+- Documented memory compaction with configuration options
+- Documented .ralph/ directory purpose and contents
+- Documented Discovery Protocol with example workflow
+- Added references to related files (lib/compaction.sh, lib/context.sh, specs/INDEX.md)
+- Section is concise (47 lines total) and well-structured
+- Files changed: AGENTS.md
+- **Learnings for future iterations:**
+  - Context management documentation helps future agents understand advanced features
+  - Configuration examples make features easier to customize
+  - Discovery Protocol documentation reinforces its usage
+  - .ralph/ directory documentation clarifies gitignored state storage
+  - blockedBy examples show dependency chain patterns
+---

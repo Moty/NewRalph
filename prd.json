@@ -103,7 +103,7 @@
         "Typecheck passes (shellcheck lib/compaction.sh)"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -122,7 +122,7 @@
       "blockedBy": [
         "US-003"
       ],
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -142,7 +142,7 @@
         "US-003",
         "US-005"
       ],
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -163,7 +163,7 @@
         "US-005",
         "US-006"
       ],
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -180,7 +180,7 @@
       "blockedBy": [
         "US-001"
       ],
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -200,7 +200,7 @@
         "US-005",
         "US-006"
       ],
-      "passes": false,
+      "passes": true,
       "notes": ""
     }
   ]

@@ -548,3 +548,14 @@ if [ -d "$RALPH_DIR/skills" ]; then
   echo "  • skills/ - Reusable skills library"
 fi
 echo ""
+
+
+# ---- Initial Git Commit ---------------------------------------
+
+if [ -d "$TARGET_DIR/.git" ]; then
+  echo "Creating initial commit with Ralph setup..."
+  cd "$TARGET_DIR"
+  git add -A && git commit -m "Initial commit with Ralph setup"
+  echo -e "${GREEN}✓ Initial commit created${NC}"
+  echo ""
+fi

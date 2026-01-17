@@ -12,101 +12,90 @@ Each module entry includes:
 
 ## Modules
 
-### Agent System
-**Keywords**: agent execution, agent loop, autonomous coding, iteration management, agent spawning, fresh context, claude code, codex, ai coding agents, continuous integration, task executor, agent orchestration, agent instance, agent lifecycle, copilot integration, agent types
+### Common Libraries
+**Keywords**: common,compaction,context,model,refresh, shared functions, utility library, bash utilities, helper functions, common code, reusable functions
 
 **File Paths**:
-- `ralph.sh` - Main agent loop executor
-- `agent.yaml` - Agent configuration and fallback support
-- `system_instructions/system_instructions.md` - Claude Code instructions
-- `system_instructions/system_instructions_codex.md` - Codex instructions
-- `system_instructions/system_instructions_copilot.md` - GitHub Copilot CLI instructions
+- lib/common.sh
+- lib/compaction.sh
+- lib/context.sh
+- lib/model-refresh.sh
 
 **Spec Link**: N/A
 
 ---
 
-### PRD Management
-**Keywords**: product requirements, user stories, task definition, acceptance criteria, story validation, prd validation, json validation, task structure, requirements document, story tracking, task priorities, story dependencies, blockedBy, dependency graph, circular dependencies, task ordering
+### Agent System Instructions
+**Keywords**: codex,copilot,instructions,system, agent instructions, system prompts, ai instructions, agent behavior, execution rules, agent configuration
 
 **File Paths**:
-- `prd.json` - Current project requirements
-- `prd.json.example` - Example PRD format
-- `lib/common.sh` - PRD validation logic (validate_prd_json function)
-- `create-prd.sh` - PRD generation script
-- `skills/prd/` - PRD generation skill
-- `skills/ralph/` - PRD conversion skill
-
-**Spec Link**: See prd.json.example for format
-
----
-
-### Progress Tracking
-**Keywords**: progress logging, iteration history, learning capture, pattern discovery, codebase patterns, execution history, agent memory, state persistence, git history, commit tracking, task completion, progress append, learnings, gotchas, context preservation
-
-**File Paths**:
-- `progress.txt` - Main progress log
-- `ralph.sh` - Progress tracking integration
-- System instructions files - Define progress report format
+- system_instructions/system_instructions_codex.md
+- system_instructions/system_instructions_copilot.md
+- system_instructions/system_instructions.md
 
 **Spec Link**: N/A
 
 ---
 
-### Installation & Setup
-**Keywords**: installation, setup, bootstrap, project initialization, global install, windows support, wsl, git bash, powershell, unix installation, cross-platform, dependency installation, directory setup, file copying, setup script
+### Skills
+**Keywords**: ,brownfield,ds,greenfield,skill,store, agent skills, task skills, specialized functions, skill execution, skill library
 
 **File Paths**:
-- `install.sh` - Global installation for Linux/macOS
-- `install.ps1` - Global installation for Windows
-- `setup-ralph.sh` - Project-specific setup script
-- `windows/` - Windows-specific wrapper scripts
-
-**Spec Link**: See README.md and AGENTS.md
-
----
-
-### Model Management
-**Keywords**: model selection, model listing, ai models, claude models, gpt models, model cache, model refresh, available models, model configuration, primary agent, fallback agent, agent selection, model switching
-
-**File Paths**:
-- `ralph-models.sh` - Model listing and cache management
-- `agent.yaml` - Model configuration
+- skills/prd/BROWNFIELD.md
+- skills/prd/GREENFIELD.md
+- skills/prd/SKILL.md
+- skills/ralph/SKILL.md
 
 **Spec Link**: N/A
 
 ---
 
-### Common Utilities
-**Keywords**: bash utilities, common functions, shared functions, helper functions, utility library, bash 3.2 compatibility, jq processing, json manipulation, validation helpers, error handling, logging utilities, cross-platform bash
+### Scripts
+**Keywords**: generate,pin, automation scripts, utility scripts, helper scripts, build scripts, setup scripts
 
 **File Paths**:
-- `lib/common.sh` - Shared bash utilities and validation
+- scripts/generate-pin.sh
 
 **Spec Link**: N/A
 
 ---
 
-### Documentation & Visualization
-**Keywords**: flowchart, react flow, visualization, interactive diagram, documentation, readme, agents.md, pattern documentation, architecture diagram, presentation mode, animated flow, process visualization
+### Ralph Core
+**Keywords**: ralph loop, agent loop, main executor, autonomous execution, iteration management, task orchestration
 
 **File Paths**:
-- `flowchart/` - Interactive React Flow visualization
-- `README.md` - Main documentation
-- `AGENTS.md` - Agent-specific patterns and instructions
-- `CONTEXT_MANAGEMENT_ENHANCEMENT.md` - Context management spec
-- `ENHANCEMENTS.md` - Enhancement documentation
+- ralph.sh
+- agent.yaml
+- create-prd.sh
+- install.sh
+- lib/common.sh
+- lib/compaction.sh
+- lib/context.sh
+- lib/model-refresh.sh
+- ralph-models.sh
+- scripts/generate-pin.sh
 
-**Spec Link**: See flowchart/README.md
+**Spec Link**: See README.md
 
 ---
+
+### Specifications
+**Keywords**: index, spec documents, technical specs, design documents, architecture docs
+
+**File Paths**:
+
+
+**Spec Link**: N/A
+
+---
+
 
 ## Usage Guidelines
 
 1. **Before implementing new functionality**: Search this index for related keywords
 2. **Found a match?**: Read the referenced files and specs
 3. **No match?**: Implement the feature and add it to this index
-4. **Updating the index**: Run `scripts/generate-pin.sh` (if available) or update manually
+4. **Updating the index**: Run `scripts/generate-pin.sh` or update manually
 
 ## Maintenance
 
@@ -114,3 +103,6 @@ This index should be updated when:
 - New major functionality is added
 - Existing modules are significantly refactored
 - Keywords need refinement based on discovery patterns
+
+**Auto-generated**: This file was generated by scripts/generate-pin.sh
+**Manual refinement recommended**: Review keywords and add domain-specific terms
