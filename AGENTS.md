@@ -102,3 +102,20 @@ npm run dev
 - Agent selection is configured in `agent.yaml` with optional fallback support
 - Ralph lib scripts must be compatible with bash 3.2 (macOS default) - avoid associative arrays
 - Use jq's `// empty` operator when accessing optional fields to prevent errors
+
+## The Pin (Discovery Index)
+
+The Pin (`specs/INDEX.md`) is a searchable index of existing functionality to prevent duplicate implementations.
+
+**Format**: Each module entry contains:
+- Module name (clear identifier)
+- Keywords: 10-20 synonyms, library names, related terms
+- File paths: Where to find the implementation
+- Optional spec link: Detailed specification reference
+
+**When to use**:
+1. Before implementing new features - search keywords to discover existing code
+2. When refactoring - update relevant module entries
+3. When adding new modules - create new entries with comprehensive keywords
+
+**Maintenance**: Keep keywords current as the codebase evolves
