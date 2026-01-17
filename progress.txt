@@ -13,3 +13,41 @@ Started: Sat Jan 17 14:06:48 PST 2026
   - jq -r with empty filter (// empty) prevents errors when field doesn't exist
   - Validation should warn but not fail on circular dependencies (design decision)
 ---
+## 2026-01-17 22:10 - US-002
+- Implemented dependency-aware task selection in ralph.sh get_current_story()
+- Function now checks blockedBy array before selecting a task
+- A story is ready when passes == false AND all blockedBy dependencies have passes == true
+- Stories without blockedBy remain immediately selectable (backward compatible)
+- Logs warning when no ready stories exist but incomplete stories remain (all blocked)
+- Files changed: ralph.sh
+- **Learnings for future iterations:**
+  - Used jq '@json' to serialize full story objects for processing in bash loops
+  - Used 'jq -r ".blockedBy // empty | .[]"' to safely iterate dependencies
+  - Nested while loops work in bash 3.2 for dependency checking
+  - Need to check both "is dependency complete" and "are there any dependencies" separately
+---
+## 2026-01-17 22:11 - US-003
+- Created specs/INDEX.md as The Pin - a searchable discovery index
+- Documented format: module name, keywords (10-20), file paths, optional spec link
+- Added 7 modules: Agent System, PRD Management, Progress Tracking, Installation & Setup, Model Management, Common Utilities, Documentation & Visualization
+- Each module has comprehensive keywords for discovery (synonyms, library names, related terms)
+- Updated AGENTS.md to document The Pin format and usage guidelines
+- Files changed: specs/INDEX.md (new), AGENTS.md
+- **Learnings for future iterations:**
+  - The Pin prevents duplicate implementations by providing keyword-searchable index
+  - Keywords should be comprehensive (10-20 per module) to improve discoverability
+  - Index structure is simple markdown for easy agent parsing
+  - Modules should group related functionality with clear file path references
+---
+## 2026-01-17 22:13 - US-004
+- Added DISCOVERY PROTOCOL section to all three system instruction files
+- Section placed after STRICT RULES and before YOUR TASK for visibility
+- Protocol instructs agents to: 1) Read specs/INDEX.md, 2) Search with keywords, 3) Read matching specs, 4) Only invent if truly new
+- Includes example showing keyword search for validation utilities
+- Files changed: system_instructions/system_instructions.md, system_instructions/system_instructions_codex.md, system_instructions/system_instructions_copilot.md
+- **Learnings for future iterations:**
+  - Discovery Protocol prevents code duplication by forcing agents to search The Pin first
+  - Placing protocol near top ensures it's read before implementation begins
+  - Clear 4-step process makes it easy for agents to follow
+  - Example in protocol helps clarify the search process
+---

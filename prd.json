@@ -31,8 +31,10 @@
         "Typecheck passes (shellcheck ralph.sh)"
       ],
       "priority": 2,
-      "blockedBy": ["US-001"],
-      "passes": false,
+      "blockedBy": [
+        "US-001"
+      ],
+      "passes": true,
       "notes": ""
     },
     {
@@ -47,7 +49,7 @@
         "Document the Pin format in AGENTS.md"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -62,8 +64,10 @@
         "Protocol is placed near the top of instructions (before implementation steps)"
       ],
       "priority": 4,
-      "blockedBy": ["US-003"],
-      "passes": false,
+      "blockedBy": [
+        "US-003"
+      ],
+      "passes": true,
       "notes": ""
     },
     {
@@ -79,7 +83,9 @@
         "Typecheck passes (shellcheck lib/context.sh)"
       ],
       "priority": 5,
-      "blockedBy": ["US-001"],
+      "blockedBy": [
+        "US-001"
+      ],
       "passes": false,
       "notes": ""
     },
@@ -113,7 +119,9 @@
         "Document usage in README.md"
       ],
       "priority": 7,
-      "blockedBy": ["US-003"],
+      "blockedBy": [
+        "US-003"
+      ],
       "passes": false,
       "notes": ""
     },
@@ -130,7 +138,10 @@
         "Typecheck passes (shellcheck lib/context-builder.sh)"
       ],
       "priority": 8,
-      "blockedBy": ["US-003", "US-005"],
+      "blockedBy": [
+        "US-003",
+        "US-005"
+      ],
       "passes": false,
       "notes": ""
     },
@@ -147,7 +158,11 @@
         "Manual test: run ./ralph.sh 1 successfully with existing prd.json.example"
       ],
       "priority": 9,
-      "blockedBy": ["US-002", "US-005", "US-006"],
+      "blockedBy": [
+        "US-002",
+        "US-005",
+        "US-006"
+      ],
       "passes": false,
       "notes": ""
     },
@@ -162,7 +177,9 @@
         "Add brief comment in example explaining blockedBy usage"
       ],
       "priority": 10,
-      "blockedBy": ["US-001"],
+      "blockedBy": [
+        "US-001"
+      ],
       "passes": false,
       "notes": ""
     },
@@ -178,7 +195,11 @@
         "Keep documentation concise (< 50 lines for new section)"
       ],
       "priority": 11,
-      "blockedBy": ["US-003", "US-005", "US-006"],
+      "blockedBy": [
+        "US-003",
+        "US-005",
+        "US-006"
+      ],
       "passes": false,
       "notes": ""
     }
