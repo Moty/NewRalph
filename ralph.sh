@@ -62,6 +62,24 @@ else
   NC='\033[0m'
 fi
 
+# ---- Load Optional Context System Libraries -----------------------
+
+# Load context management library if present
+if [ -f "$SCRIPT_DIR/lib/context.sh" ]; then
+  source "$SCRIPT_DIR/lib/context.sh"
+  CONTEXT_SYSTEM_ENABLED=true
+else
+  CONTEXT_SYSTEM_ENABLED=false
+fi
+
+# Load compaction library if present
+if [ -f "$SCRIPT_DIR/lib/compaction.sh" ]; then
+  source "$SCRIPT_DIR/lib/compaction.sh"
+  COMPACTION_ENABLED=true
+else
+  COMPACTION_ENABLED=false
+fi
+
 # ---- Helper Functions ---------------------------------------------
 
 require_bin jq
@@ -92,6 +110,16 @@ get_elapsed_time() {
 
 get_current_story() {
   if [ -f "$PRD_FILE" ]; then
+    # Use context system if available
+    if [ "$CONTEXT_SYSTEM_ENABLED" = true ]; then
+      local ready_tasks=$(get_ready_tasks 2>/dev/null || echo "")
+      if [ -n "$ready_tasks" ]; then
+        echo "$ready_tasks" | head -n 1
+        return
+      fi
+    fi
+    
+    # Fallback to traditional PRD-based selection
     # Get all incomplete stories
     local incomplete_stories=$(jq -r '.userStories[] | select(.passes == false) | @json' "$PRD_FILE" 2>/dev/null)
     
@@ -619,6 +647,12 @@ start_sleep_prevention
 
 for i in $(seq 1 "$MAX_ITERATIONS"); do
   ITERATION_START=$(date +%s)
+  
+  # Run pre-iteration compaction if enabled
+  if [ "$COMPACTION_ENABLED" = true ]; then
+    pre_iteration_compact "$PROGRESS_FILE" 2>/dev/null || true
+  fi
+  
   print_status $i $MAX_ITERATIONS
 
   set +e
