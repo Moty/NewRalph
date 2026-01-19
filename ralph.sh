@@ -220,6 +220,30 @@ else
   COMPACTION_ENABLED=false
 fi
 
+# Load checkpointing library if present
+if [ -f "$SCRIPT_DIR/lib/checkpointing.sh" ]; then
+  source "$SCRIPT_DIR/lib/checkpointing.sh"
+  CHECKPOINTING_ENABLED=true
+else
+  CHECKPOINTING_ENABLED=false
+fi
+
+# Load REPL library if present
+if [ -f "$SCRIPT_DIR/lib/repl.sh" ]; then
+  source "$SCRIPT_DIR/lib/repl.sh"
+  REPL_LIBRARY_LOADED=true
+else
+  REPL_LIBRARY_LOADED=false
+fi
+
+# Load dynamic context library if present
+if [ -f "$SCRIPT_DIR/lib/dynamic-context.sh" ]; then
+  source "$SCRIPT_DIR/lib/dynamic-context.sh"
+  DYNAMIC_CONTEXT_ENABLED=true
+else
+  DYNAMIC_CONTEXT_ENABLED=false
+fi
+
 # ---- Helper Functions ---------------------------------------------
 
 require_bin jq
@@ -691,6 +715,73 @@ run_agent() {
   return $exit_code
 }
 
+# ---- REPL-Aware Agent Runner --------------------------------------
+
+# Run agent with REPL support for complex tasks
+# Usage: run_agent_with_repl <agent> <task_id> <task_description> <ac_count>
+run_agent_with_repl() {
+  local agent="$1"
+  local task_id="$2"
+  local task_description="$3"
+  local ac_count="${4:-0}"
+
+  # Check if REPL should be enabled for this task
+  if [ "$REPL_LIBRARY_LOADED" = true ] && type should_enable_repl >/dev/null 2>&1; then
+    if should_enable_repl "$task_description" "$ac_count"; then
+      local reason=$(get_complexity_reason "$task_description" "$ac_count")
+      echo -e "${CYAN}REPL mode enabled:${NC} $reason"
+
+      # Initialize REPL state
+      init_repl_cycle "$task_id" > /dev/null
+
+      # Create initial checkpoint if available
+      if [ "$CHECKPOINTING_ENABLED" = true ]; then
+        create_named_checkpoint "repl_start" "$task_id" "in_progress" "Starting REPL cycle" > /dev/null 2>&1 || true
+      fi
+
+      # Run agent (REPL logic is handled in system instructions)
+      run_agent "$agent"
+      local result=$?
+
+      # Clean up REPL state on completion
+      cleanup_repl "$task_id" 2>/dev/null || true
+
+      return $result
+    fi
+  fi
+
+  # Standard agent run (no REPL)
+  run_agent "$agent"
+}
+
+# Get current task details for REPL integration
+# Usage: get_current_task_details
+# Returns: task_id|description|ac_count (pipe-separated)
+get_current_task_details() {
+  if [ ! -f "$PRD_FILE" ]; then
+    echo "||0"
+    return
+  fi
+
+  # Get the highest priority incomplete story that's not blocked
+  local task_json=$(jq -r '
+    [.userStories[] | select(.passes == false)] |
+    sort_by(.priority) |
+    .[0] // empty
+  ' "$PRD_FILE" 2>/dev/null)
+
+  if [ -z "$task_json" ] || [ "$task_json" = "null" ]; then
+    echo "||0"
+    return
+  fi
+
+  local task_id=$(echo "$task_json" | jq -r '.id // ""')
+  local description=$(echo "$task_json" | jq -r '.description // ""')
+  local ac_count=$(echo "$task_json" | jq -r '.acceptanceCriteria | length // 0')
+
+  echo "${task_id}|${description}|${ac_count}"
+}
+
 # ---- Archive previous run -----------------------------------------
 
 if [ -f "$PRD_FILE" ] && [ -f "$LAST_BRANCH_FILE" ]; then
@@ -787,16 +878,32 @@ start_sleep_prevention
 
 for i in $(seq 1 "$MAX_ITERATIONS"); do
   ITERATION_START=$(date +%s)
-  
+
   # Run pre-iteration compaction if enabled
   if [ "$COMPACTION_ENABLED" = true ]; then
     pre_iteration_compact "$PROGRESS_FILE" 2>/dev/null || true
   fi
-  
+
+  # Clean old checkpoints periodically (every 5 iterations)
+  if [ "$CHECKPOINTING_ENABLED" = true ] && [ $((i % 5)) -eq 1 ]; then
+    clean_old_checkpoints 2>/dev/null || true
+  fi
+
+  # Get current task details for REPL integration
+  TASK_DETAILS=$(get_current_task_details)
+  CURRENT_TASK_ID=$(echo "$TASK_DETAILS" | cut -d'|' -f1)
+  CURRENT_TASK_DESC=$(echo "$TASK_DETAILS" | cut -d'|' -f2)
+  CURRENT_AC_COUNT=$(echo "$TASK_DETAILS" | cut -d'|' -f3)
+
   print_status $i $MAX_ITERATIONS
 
   set +e
-  OUTPUT=$(run_agent "$PRIMARY_AGENT" 2>&1 | tee /dev/stderr)
+  # Use REPL-aware runner if we have task details
+  if [ -n "$CURRENT_TASK_ID" ] && [ "$REPL_LIBRARY_LOADED" = true ]; then
+    OUTPUT=$(run_agent_with_repl "$PRIMARY_AGENT" "$CURRENT_TASK_ID" "$CURRENT_TASK_DESC" "$CURRENT_AC_COUNT" 2>&1 | tee /dev/stderr)
+  else
+    OUTPUT=$(run_agent "$PRIMARY_AGENT" 2>&1 | tee /dev/stderr)
+  fi
   STATUS=$?
   set -e
 
