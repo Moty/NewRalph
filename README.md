@@ -143,9 +143,68 @@ rm -rf system_instructions/ skills/ archive/
 The `setup-ralph.sh` script handles everything:
 
 ```bash
-# From the Ralph repository
+# Fresh install
 ./setup-ralph.sh /path/to/your/project
+
+# Update existing installation (preserves your config)
+./setup-ralph.sh --update /path/to/your/project
+
+# Check Ralph version
+./setup-ralph.sh --version
 ```
+
+**Options:**
+- `--update` - Update existing installation while preserving `agent.yaml` settings
+- `--force` - Force overwrite all files including configuration
+- `--version` - Show Ralph version
+- `-h, --help` - Show help
+
+**Update mode features:**
+- Updates core scripts (`ralph.sh`, `create-prd.sh`, `lib/`, `skills/`)
+- Preserves your `agent.yaml` configuration (merges new options)
+- Preserves `prd.json`, `progress.txt`, `AGENTS.md`
+- Creates timestamped backups in `.ralph-backup/`
+- Writes version to `.ralph-version` for tracking
+
+### Self-Update from Projects
+
+Projects can update themselves without needing direct access to the Ralph repo:
+
+```bash
+# Check if updates are available
+./ralph.sh --check-update
+
+# Update to latest version
+./ralph.sh --update
+```
+
+This works by:
+1. Reading the source repo path from `.ralph-version`
+2. Comparing versions with the source
+3. Running `setup-ralph.sh --update` automatically
+
+**Tip:** Keep your Ralph source repo up to date with `git pull`, then use `./ralph.sh --update` in each project.
+
+### Bulk Update All Projects
+
+For projects with older Ralph versions (pre-1.1.0), use the bulk updater from the Ralph source repo:
+
+```bash
+# Update all Ralph installations found in default paths
+cd /path/to/ralph
+./ralph-update-all.sh
+
+# Or specify custom search paths
+./ralph-update-all.sh ~/work ~/projects /Volumes/ExternalDrive/projects
+```
+
+This will:
+- Search for all `ralph.sh` files in the specified directories
+- Show found installations with their versions
+- Update them all after confirmation
+- Enable self-update (`./ralph.sh --update`) for future updates
+
+**Default search paths:** `~/Projects` and `/Volumes/MMMACSSD/Projects`
 
 This will copy all necessary files and guide you through configuration.
 
@@ -197,6 +256,7 @@ codex:
 
 # GitHub Copilot CLI settings
 github-copilot:
+  model: auto            # Options: claude-opus-4.5, claude-sonnet-4.5, gpt-5.2-codex, auto
   tool-approval: allow-all  # allow-all grants all tool permissions automatically
   # deny-tools:             # Optional: specific tools to deny
   #   - "shell (rm)"
@@ -210,7 +270,9 @@ gemini:
 ```
 
 **Model Selection:**
-- `claude-sonnet-4-20250514` - Latest Claude Sonnet (recommended)
+- `claude-sonnet-4-20250514` - Latest Claude Sonnet (recommended for Claude Code)
+- `claude-opus-4.5` - Best quality for complex tasks (available in Copilot CLI)
+- `claude-sonnet-4.5` - Balanced quality/speed (available in Copilot CLI)
 - `codex-5.2` - Latest Codex (recommended)
 - `gpt-4o` / `o1` - Alternatives if `codex-5.2` unavailable
 
@@ -382,7 +444,7 @@ your-project/
 
 **Git Tracking:**
 - ✓ Commit: `ralph.sh`, `create-prd.sh`, `ralph-models.sh`, `agent.yaml`, `prd.json`, `prd.json.example`, `AGENTS.md`, `system_instructions/`, `skills/`
-- ✗ Ignore: `progress.txt`, `.last-branch`, `archive/`, `.ralph-models-cache.json` (automatically added to .gitignore)
+- ✗ Ignore: `progress.txt`, `.last-branch`, `.ralph-version`, `.ralph-backup/`, `archive/`, `.ralph-models-cache.json` (automatically added to .gitignore)
 
 ## Key Files
 
@@ -405,6 +467,8 @@ your-project/
 | `skills/prd/BROWNFIELD.md` | PRD skill for existing codebases (integration, patterns) |
 | `skills/ralph/` | Skill for converting PRDs to JSON |
 | `flowchart/` | Interactive visualization of how Ralph works |
+| `specs/INDEX.md` | The Pin - Discovery index of existing functionality |
+| `scripts/generate-pin.sh` | Auto-generate The Pin from codebase analysis |
 
 ## Flowchart
 
@@ -444,6 +508,36 @@ Too big (split these):
 - "Add authentication"
 - "Refactor the API"
 
+### Story Dependencies with blockedBy
+
+User stories can declare dependencies on other stories using the `blockedBy` field:
+
+```json
+{
+  "id": "US-002",
+  "title": "Display priority indicator",
+  "blockedBy": ["US-001"],
+  "passes": false
+}
+```
+
+**How it works:**
+- Stories in `blockedBy` must complete (`passes: true`) before the story can start
+- Ralph automatically skips blocked stories and picks the next ready one
+- The `create-prd.sh` script generates `blockedBy` based on detected dependencies
+
+**Common dependency patterns:**
+| Story Type | Typically Blocked By |
+|------------|---------------------|
+| Database schema | Nothing (foundational) |
+| Backend API | Schema stories it reads/writes |
+| UI component | Backend APIs it calls |
+| Integration tests | All component stories |
+
+**Validation:**
+- Every ID in `blockedBy` must exist in the PRD
+- Circular dependencies are detected and warned about (A blocks B, B blocks A)
+
 ### AGENTS.md Updates Are Critical
 
 After each iteration, Ralph updates the relevant `AGENTS.md` files with learnings. This is key because the agent automatically reads these files, so future iterations (and future human developers) benefit from discovered patterns, gotchas, and conventions.
@@ -452,6 +546,22 @@ Examples of what to add to AGENTS.md:
 - Patterns discovered ("this codebase uses X for Y")
 - Gotchas ("do not forget to update Z when changing W")
 - Useful context ("the settings panel is in component X")
+
+### The Pin (Discovery Index)
+
+The Pin (`specs/INDEX.md`) is a searchable index of existing functionality. It prevents duplicate implementations by helping agents discover existing code before writing new features.
+
+**Maintaining The Pin:**
+
+```bash
+# Auto-generate from codebase structure
+./scripts/generate-pin.sh
+
+# Manually refine keywords for better discoverability
+# Edit specs/INDEX.md to add domain-specific terms
+```
+
+Agents automatically consult The Pin before implementing new features using the Discovery Protocol defined in system instructions.
 
 ### Feedback Loops
 

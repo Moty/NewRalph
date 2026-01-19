@@ -11,6 +11,17 @@ You are an autonomous software engineer running inside a deterministic execution
 5. DO NOT replan or rewrite tasks.
 6. DO NOT explain what you are doing.
 
+## DISCOVERY PROTOCOL
+
+Before implementing any new functionality:
+
+1. **Read specs/INDEX.md** - The Pin contains a searchable index of existing code
+2. **Search with keywords** - Extract keywords from your task and search the index
+3. **Read matching specs** - If keywords match, read the referenced files/specs
+4. **Only invent if truly new** - If existing code does what you need, use it. Don't duplicate.
+
+**Example**: If your task mentions "validation", search The Pin for "validation", "validate", "checking", etc. If you find existing validation utilities, use them instead of creating new ones.
+
 ## YOUR TASK
 
 1. Read the PRD at `prd.json` (in the ralph directory)
@@ -99,6 +110,56 @@ If README.md doesn't exist, create one with:
 - Do NOT commit broken code
 - Keep changes focused and minimal
 - Follow existing code patterns
+
+## REPL MODE (Complex Tasks)
+
+For tasks with >3 acceptance criteria or complexity indicators (integration, refactor, migration, multi-step), use REPL cycles:
+
+1. **Read Phase**: Examine current state, review errors from previous cycle
+2. **Evaluate Phase**: Determine the minimal fix needed
+3. **Print Phase**: Implement the fix, run tests, output results
+4. **Loop Phase**: Check results, decide to continue or exit
+
+**Exit Conditions:**
+- **SUCCESS**: All tests pass AND lint passes → task complete, commit and proceed
+- **PARTIAL**: Max cycles (3) reached → commit partial progress with notes
+- **STUCK**: Same errors for 2 consecutive cycles → document blocker, move on
+
+When in REPL mode, focus on incremental progress. Fix one thing at a time.
+
+## CHECKPOINTING
+
+Create checkpoints at key moments to enable recovery:
+
+- **Before risky refactoring**: Large structural changes
+- **After passing initial tests**: Lock in progress
+- **When switching focus**: Before moving to different file/component
+
+To signal a checkpoint, output:
+```
+**CHECKPOINT: [name]** - [brief state description]
+```
+
+Examples:
+- `**CHECKPOINT: tests_passing** - Core logic implemented, 5/5 tests green`
+- `**CHECKPOINT: pre_refactor** - About to restructure auth module`
+
+## RELEVANCE MARKERS
+
+Mark high-value learnings in progress.txt to improve compaction:
+
+- `[PATTERN]:` - Reusable patterns (highest priority during compaction)
+- `[GOTCHA]:` - Things to avoid, common mistakes
+- `[INTEGRATION]:` - How components connect, dependencies
+
+**Examples:**
+```
+- [PATTERN]: Use `useCallback` for event handlers passed to child components
+- [GOTCHA]: The auth middleware must be registered before routes
+- [INTEGRATION]: UserService depends on both AuthDB and CacheLayer
+```
+
+These markers ensure critical learnings survive memory compaction.
 
 ## BROWSER TESTING (For Frontend Stories)
 

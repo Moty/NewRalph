@@ -18,6 +18,7 @@ Added a new section for GitHub Copilot configuration:
 
 ```yaml
 github-copilot:
+  model: auto          # Model to use: claude-opus-4.5, claude-sonnet-4.5, claude-haiku-4.5, gpt-5.2-codex, or auto
   tool-approval: allow-all  # allow-all grants all tool permissions automatically
   deny-tools:             # Optional: specific tools to deny
     - "shell (rm)"
@@ -25,6 +26,7 @@ github-copilot:
 ```
 
 **Key Features**:
+- `model`: Model selection (claude-opus-4.5, claude-sonnet-4.5, claude-haiku-4.5, gpt-5.2-codex, or auto)
 - `tool-approval`: Controls automatic tool permission granting (allow-all/selective)
 - `deny-tools`: List of specific tools to block even with allow-all
 - `flags`: Optional additional CLI flags (commented out by default)
@@ -51,6 +53,7 @@ Updated two validation functions to recognize `github-copilot` as a valid agent:
 ```bash
 get_copilot_tool_approval()  # Returns tool-approval setting
 get_copilot_deny_tools()     # Returns array of denied tools
+get_copilot_model()          # Returns model setting (or auto)
 ```
 
 **New Agent Case** (lines ~252-280):
@@ -63,7 +66,7 @@ Added `github-copilot` case to `run_agent()` function with:
 
 **Command Structure**:
 ```bash
-copilot -p "<prompt>" --allow-all-tools --deny-tool 'shell (rm)' --deny-tool 'fetch'
+copilot -p "<prompt>" --model claude-opus-4.5 --allow-all-tools --deny-tool 'shell (rm)' --deny-tool 'fetch'
 ```
 
 ### 4. System Instructions
@@ -129,7 +132,12 @@ copilot -p "<prompt>" --allow-all-tools --deny-tool 'shell (rm)' --deny-tool 'fe
    - Mirrors Codex's `full-auto` approval mode
    - Users can add deny-tools for safety
 
-2. **No Model Selection**: GitHub Copilot CLI doesn't expose model selection like Claude/Codex, so this configuration is omitted
+2. **Model Selection**: Supports model selection via `model` configuration option:
+   - `claude-opus-4.5` - Best for complex tasks
+   - `claude-sonnet-4.5` - Balanced performance
+   - `claude-haiku-4.5` - Fast for simple tasks
+   - `gpt-5.2-codex` - Alternative model option
+   - `auto` - Let Copilot decide based on context
 
 3. **System Instructions**: Created separate file to:
    - Allow per-agent customization

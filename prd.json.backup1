@@ -1,0 +1,203 @@
+{
+  "project": "Ralph",
+  "branchName": "ralph/context-management-enhancement",
+  "description": "Context Management Enhancement System - Reduce context loss between iterations with discovery-based context, task dependencies, smart context injection, and memory compaction",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "The Pin Discovery System - Index Creation",
+      "description": "As an agent, I need a searchable keyword index to discover existing code before implementing new features.",
+      "acceptanceCriteria": [
+        "Create specs/INDEX.md structure with sections per module",
+        "Each module lists 10-20 keywords (synonyms, library names, related terms)",
+        "Includes file paths and spec references",
+        "Create scripts/generate-pin.sh that analyzes codebase and generates INDEX.md",
+        "Script uses agent to extract keywords from code structure",
+        "Run script manually to validate output format",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "The Pin Discovery System - Agent Integration",
+      "description": "As an agent, I want to read The Pin before implementing to avoid duplicating existing functionality.",
+      "acceptanceCriteria": [
+        "Update system_instructions/system_instructions.md with DISCOVERY PROTOCOL section",
+        "Update system_instructions/system_instructions_codex.md with DISCOVERY PROTOCOL section",
+        "Update system_instructions/system_instructions_copilot.md with DISCOVERY PROTOCOL section",
+        "Protocol instructs: Read specs/INDEX.md first, search for keywords, only create if no match",
+        "Add example showing good vs bad discovery process",
+        "Existing tests still pass",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Task Dependency System - Schema Update",
+      "description": "As a developer, I need to define task dependencies so agents execute work in the correct order.",
+      "acceptanceCriteria": [
+        "Update prd.json.example to include blockedBy field (array of task IDs)",
+        "Add example of epic structure with parent/child relationships",
+        "Add comments explaining dependency resolution",
+        "Document in README.md or inline comments",
+        "Existing prd.json.example stories remain valid",
+        "Typecheck passes (jq validation: jq . prd.json.example)"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Task Dependency System - Selection Logic",
+      "description": "As Ralph, I need to select only tasks whose dependencies are complete.",
+      "acceptanceCriteria": [
+        "Create get_next_ready_task() function in ralph.sh or lib/common.sh",
+        "Function checks passes: false AND all blockedBy tasks have passes: true",
+        "Returns highest priority ready task (sorted by priority field)",
+        "Returns empty/null if no ready tasks (triggers RALPH_COMPLETE)",
+        "Update ralph.sh to use new function instead of simple select(.passes == false)",
+        "Test with sample PRD containing dependencies",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Native Context System - Task Memory",
+      "description": "As Ralph, I need structured task memory that persists across iterations.",
+      "acceptanceCriteria": [
+        "Create lib/context.sh with functions: init_context, get_ready_tasks, update_task, create_discovered_task",
+        "Uses .ralph/tasks.jsonl for task storage (JSONL format, one task per line)",
+        "Uses .ralph/context.json for metadata (iteration count, compaction level)",
+        "Function import_prd() converts prd.json to tasks.jsonl format",
+        "Function compact_tasks() summarizes old completed tasks",
+        "All functions use jq for JSON manipulation",
+        "Create .ralph/ directory in .gitignore or document commit strategy",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Native Context System - Ralph Integration",
+      "description": "As Ralph, I want to use the native context system for task tracking.",
+      "acceptanceCriteria": [
+        "Update ralph.sh to source lib/context.sh",
+        "Call init_context on first run (check if .ralph/ exists)",
+        "Optionally call import_prd() to convert existing prd.json (manual or flag-based)",
+        "Add CLI flag --use-native-context to enable new system",
+        "When enabled, use context.sh functions instead of direct prd.json queries",
+        "Document flag in usage message and README",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Smart Context Injection - Builder",
+      "description": "As Ralph, I need to build optimal context for each iteration based on the current task.",
+      "acceptanceCriteria": [
+        "Create lib/context-builder.sh with build_context() function",
+        "Function takes current task description as input",
+        "Includes specs/INDEX.md if exists",
+        "Searches specs/ for relevant files based on task keywords",
+        "Includes last 50 lines of progress.txt",
+        "Includes Codebase Patterns section from progress.txt",
+        "Returns formatted context string",
+        "Test with sample task descriptions",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Smart Context Injection - Ralph Integration",
+      "description": "As Ralph, I want to inject dynamic context into agent prompts.",
+      "acceptanceCriteria": [
+        "Update ralph.sh to source lib/context-builder.sh",
+        "Modify agent prompt construction to include built context",
+        "Context appears before main prompt (as prefix)",
+        "Works with all agents (Claude Code, Codex, Copilot, Gemini)",
+        "Add CLI flag --smart-context to enable feature",
+        "Document in usage and README",
+        "Test with each agent type",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Memory Compaction - Compaction Logic",
+      "description": "As Ralph, I need to automatically compact old progress.txt entries to prevent context overflow.",
+      "acceptanceCriteria": [
+        "Create lib/compaction.sh with compact_progress() function",
+        "Triggers when progress.txt exceeds 400 lines (configurable threshold)",
+        "Preserves first 50 lines (patterns section)",
+        "Preserves last 200 lines (recent work)",
+        "Summarizes middle section (extracts headers and bullet points)",
+        "Creates Compacted History section with timestamp",
+        "Function compact_tasks() keeps last 10 completed tasks in .ralph/tasks.jsonl",
+        "Logs compaction events to .ralph/compaction.log",
+        "Test with large progress.txt file",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Memory Compaction - Ralph Integration",
+      "description": "As Ralph, I want to run compaction automatically before each iteration.",
+      "acceptanceCriteria": [
+        "Update ralph.sh to source lib/compaction.sh",
+        "Call compact_progress() before each iteration (in main loop)",
+        "Log compaction events to ralph.log",
+        "Add CLI flag --no-compact to disable",
+        "Document in usage and README",
+        "Verify compaction happens in multi-iteration run",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Documentation and Examples",
+      "description": "As a user, I need clear documentation on how to use the new context features.",
+      "acceptanceCriteria": [
+        "Update README.md with Context Management section",
+        "Document all new CLI flags (--use-native-context, --smart-context, --no-compact)",
+        "Add example specs/INDEX.md for common project types (Node.js, Python, etc.)",
+        "Document .ralph/ directory structure and files",
+        "Add migration guide for existing projects",
+        "Document when to use Pin vs native context vs both",
+        "Update AGENTS.md with new patterns discovered during implementation",
+        "All markdown files render correctly",
+        "No broken links in documentation",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
