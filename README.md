@@ -627,7 +627,6 @@ your-project/
 | `skills/prd/GREENFIELD.md` | PRD skill for new projects (architecture, tech selection) |
 | `skills/prd/BROWNFIELD.md` | PRD skill for existing codebases (integration, patterns) |
 | `skills/ralph/` | Skill for converting PRDs to JSON |
-| `flowchart/` | Interactive visualization of how Ralph works |
 | `specs/INDEX.md` | The Pin - Discovery index of existing functionality |
 | `scripts/generate-pin.sh` | Auto-generate The Pin from codebase analysis |
 
@@ -635,15 +634,7 @@ your-project/
 
 [![Ralph Flowchart](ralph-flowchart.png)](https://snarktank.github.io/ralph/)
 
-**[View Interactive Flowchart](https://snarktank.github.io/ralph/)** - Click through to see each step with animations.
-
-The `flowchart/` directory contains the source code. To run locally:
-
-```bash
-cd flowchart
-npm install
-npm run dev
-```
+**[View Interactive Flowchart](https://snarktank.github.io/ralph/)** - Click through to see each step with animations and understand how Ralph works visually.
 
 ## Critical Concepts
 

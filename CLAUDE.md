@@ -46,10 +46,8 @@ Ralph is an autonomous AI agent loop that runs AI coding agents (Claude Code, Co
 ```
 
 ### Flowchart (interactive visualization)
-```bash
-cd flowchart && npm install && npm run dev    # Development server
-cd flowchart && npm run build                  # Production build
-```
+
+View the interactive flowchart at: https://snarktank.github.io/ralph/
 
 ## Architecture
 

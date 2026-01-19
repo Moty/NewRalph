@@ -276,7 +276,6 @@ Based on the codebase review, recommended future improvements include:
 1. **Automated Testing**
    - Add bash unit tests using bats-core
    - Create integration tests for full Ralph runs
-   - Add TypeScript tests for flowchart app
    - Add CI test pipeline
 
 2. **Rollback Mechanism**

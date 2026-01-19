@@ -63,12 +63,6 @@ Update mode:
 # Run the setup script
 ./setup-ralph.sh /path/to/project
 
-# Run the flowchart dev server
-cd flowchart && npm run dev
-
-# Build the flowchart
-cd flowchart && npm run build
-
 # Run Ralph (from your project that has prd.json)
 ./ralph.sh [max_iterations]
 
@@ -117,19 +111,11 @@ bash ralph.sh [max_iterations]
 - `prd.json.example` - Example PRD format
 - `skills/prd/` - Skill for generating PRDs
 - `skills/ralph/` - Skill for converting PRDs to JSON
-- `flowchart/` - Interactive React Flow diagram explaining how Ralph works
 - `prompt.md` - Legacy prompt file (optional)
 
 ## Flowchart
 
-The `flowchart/` directory contains an interactive visualization built with React Flow. It's designed for presentations - click through to reveal each step with animations.
-
-To run locally:
-```bash
-cd flowchart
-npm install
-npm run dev
-```
+Interactive visualization at https://snarktank.github.io/ralph/ - click through to reveal each step with animations.
 
 ## Patterns
 
