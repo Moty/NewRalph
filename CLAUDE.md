@@ -16,6 +16,10 @@ Ralph is an autonomous AI agent loop that runs AI coding agents (Claude Code, Co
 ./ralph.sh --timeout 3600             # Custom timeout per iteration (seconds)
 ./ralph.sh --check-update             # Check for updates
 ./ralph.sh --update                   # Self-update from source repo
+./ralph.sh --push                     # Enable auto-push (override config)
+./ralph.sh --no-push                  # Disable auto-push (override config)
+./ralph.sh --create-pr                # Enable PR creation (override config)
+./ralph.sh --no-pr                    # Disable PR creation (override config)
 ```
 
 ### Installing Ralph into a project
@@ -64,6 +68,7 @@ cd flowchart && npm run build                  # Production build
 - `context.sh` - Task state management with dependency awareness
 - `context-builder.sh` - Builds context for agent prompts
 - `model-refresh.sh` - Model detection and caching
+- `git.sh` - Git workflow operations (branch management, merge, push, PR creation)
 
 **Bash compatibility**: All lib scripts must work with bash 3.2 (macOS default). Avoid associative arrays. Use `jq`'s `// empty` operator when accessing optional JSON fields.
 
@@ -152,6 +157,49 @@ gemini:
   model: gemini-3-pro
   approval-mode: auto
 ```
+
+## Git Workflow Configuration
+
+Ralph uses a sub-branch workflow for better isolation and history:
+
+```
+main (stable)
+  └── ralph/feature-name (feature branch)
+        ├── ralph/feature-name/US-001 (sub-branch per story)
+        │     └── merged back after story completes
+        ├── ralph/feature-name/US-002
+        │     └── merged back after story completes
+        └── PR → main (when all stories complete)
+```
+
+### Workflow Summary
+1. **setup-ralph.sh** creates the feature branch `ralph/feature-name` and pushes to GitHub
+2. **ralph.sh** ensures the feature branch is checked out before each iteration
+3. **Agent** creates sub-branch `ralph/feature-name/US-XXX` and commits there
+4. **ralph.sh** merges sub-branch → feature branch with `--no-ff`, pushes, and deletes sub-branch
+5. **ralph.sh** creates PR from feature branch → main when RALPH_COMPLETE
+
+### Git Configuration (agent.yaml)
+
+```yaml
+git:
+  auto-checkout-branch: true    # Ralph checkouts feature branch before spawning agent
+  base-branch: main             # Branch to create feature branches from
+  push:
+    enabled: false              # Disabled by default for backward compatibility
+    timing: iteration           # "iteration" (after each story) or "end" (after RALPH_COMPLETE)
+  pr:
+    enabled: false              # Disabled by default
+    draft: false                # Create as draft PR
+```
+
+### CLI Overrides
+
+Override git settings for a single run:
+- `--push` / `--no-push` - Enable/disable auto-push
+- `--create-pr` / `--no-pr` - Enable/disable PR creation
+
+Example: `./ralph.sh --push --create-pr` enables both push and PR creation for this run.
 
 ## Key Patterns
 

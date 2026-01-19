@@ -1,6 +1,6 @@
 #!/bin/bash
 # Ralph Wiggum - Long-running AI agent loop (agent-agnostic)
-# Usage: ./ralph.sh [max_iterations] [--no-sleep-prevent] [--verbose] [--timeout SECONDS] [--no-timeout] [--greenfield] [--brownfield] [--update] [--check-update]
+# Usage: ./ralph.sh [max_iterations] [--no-sleep-prevent] [--verbose] [--timeout SECONDS] [--no-timeout] [--greenfield] [--brownfield] [--update] [--check-update] [--push|--no-push] [--create-pr|--no-pr]
 # Agent priority: GitHub Copilot CLI → Claude Code → Gemini → Codex
 
 set -e
@@ -15,6 +15,10 @@ PROJECT_TYPE=""  # greenfield, brownfield, or auto-detected
 DO_UPDATE=false
 CHECK_UPDATE_ONLY=false
 MAX_ITERATIONS=10
+
+# Git workflow CLI overrides (empty = use config file)
+GIT_PUSH_OVERRIDE=""
+GIT_PR_OVERRIDE=""
 
 # Check for flags first (before processing positional args)
 POSITIONAL_ARGS=()
@@ -51,6 +55,22 @@ while [[ $# -gt 0 ]]; do
       ;;
     --check-update)
       CHECK_UPDATE_ONLY=true
+      shift
+      ;;
+    --push)
+      GIT_PUSH_OVERRIDE="true"
+      shift
+      ;;
+    --no-push)
+      GIT_PUSH_OVERRIDE="false"
+      shift
+      ;;
+    --create-pr)
+      GIT_PR_OVERRIDE="true"
+      shift
+      ;;
+    --no-pr)
+      GIT_PR_OVERRIDE="false"
       shift
       ;;
     -*)
@@ -244,10 +264,54 @@ else
   DYNAMIC_CONTEXT_ENABLED=false
 fi
 
+# Load git workflow library if present
+if [ -f "$SCRIPT_DIR/lib/git.sh" ]; then
+  source "$SCRIPT_DIR/lib/git.sh"
+  GIT_LIBRARY_LOADED=true
+else
+  GIT_LIBRARY_LOADED=false
+fi
+
 # ---- Helper Functions ---------------------------------------------
 
 require_bin jq
 require_bin yq
+
+# Check if push is enabled (respects CLI override)
+# Usage: should_push && push_branch ...
+should_push() {
+  # CLI override takes precedence
+  if [ "$GIT_PUSH_OVERRIDE" = "true" ]; then
+    return 0
+  elif [ "$GIT_PUSH_OVERRIDE" = "false" ]; then
+    return 1
+  fi
+
+  # Fall back to config file
+  if [ "$GIT_LIBRARY_LOADED" = true ] && type get_git_push_enabled >/dev/null 2>&1; then
+    get_git_push_enabled
+  else
+    return 1
+  fi
+}
+
+# Check if PR creation is enabled (respects CLI override)
+# Usage: should_create_pr && create_pr ...
+should_create_pr() {
+  # CLI override takes precedence
+  if [ "$GIT_PR_OVERRIDE" = "true" ]; then
+    return 0
+  elif [ "$GIT_PR_OVERRIDE" = "false" ]; then
+    return 1
+  fi
+
+  # Fall back to config file
+  if [ "$GIT_LIBRARY_LOADED" = true ] && type get_git_pr_enabled >/dev/null 2>&1; then
+    get_git_pr_enabled
+  else
+    return 1
+  fi
+}
 
 # Use format_duration from common.sh, or define fallback if not loaded
 if ! type format_duration >/dev/null 2>&1; then
@@ -848,6 +912,33 @@ fi
 echo -e "${GREEN}✓ Pre-flight checks complete${NC}"
 echo ""
 
+# ---- Git Branch Setup ---------------------------------------------
+
+BRANCH_NAME=""
+if [ -f "$PRD_FILE" ]; then
+  BRANCH_NAME=$(jq -r '.branchName // empty' "$PRD_FILE" 2>/dev/null)
+fi
+
+# Ensure feature branch exists and checkout if git library is loaded
+if [ "$GIT_LIBRARY_LOADED" = true ] && [ -n "$BRANCH_NAME" ]; then
+  if get_git_auto_checkout_branch 2>/dev/null; then
+    echo -e "${CYAN}Setting up git branch workflow...${NC}"
+
+    # Validate remote if push is enabled
+    if should_push; then
+      validate_git_remote || true
+    fi
+
+    # Ensure we're on the feature branch
+    if ! ensure_feature_branch "$BRANCH_NAME"; then
+      echo -e "${YELLOW}Warning: Could not setup feature branch, continuing anyway${NC}"
+    else
+      echo -e "${GREEN}✓ On branch: ${BRANCH_NAME}${NC}"
+    fi
+    echo ""
+  fi
+fi
+
 # ---- Main loop ----------------------------------------------------
 
 PRIMARY_AGENT=$(get_agent)
@@ -873,11 +964,34 @@ fi
 [ "$VERBOSE" = true ] && echo -e "Verbose mode: ${GREEN}enabled${NC}"
 echo -e "Log file: ${BLUE}$LOG_FILE${NC}"
 echo -e "Started at: ${BLUE}$(date '+%Y-%m-%d %H:%M:%S')${NC}"
+# Show git workflow status
+if [ -n "$BRANCH_NAME" ]; then
+  echo -e "Feature branch: ${CYAN}$BRANCH_NAME${NC}"
+  if should_push; then
+    PUSH_TIMING=$(get_git_push_timing 2>/dev/null || echo "iteration")
+    echo -e "Auto-push: ${GREEN}enabled${NC} (timing: $PUSH_TIMING)"
+  else
+    echo -e "Auto-push: ${YELLOW}disabled${NC}"
+  fi
+  if should_create_pr; then
+    echo -e "Auto-PR: ${GREEN}enabled${NC}"
+  else
+    echo -e "Auto-PR: ${YELLOW}disabled${NC}"
+  fi
+fi
 
 start_sleep_prevention
 
 for i in $(seq 1 "$MAX_ITERATIONS"); do
   ITERATION_START=$(date +%s)
+
+  # Ensure we're on the feature branch and pull latest before each iteration
+  if [ "$GIT_LIBRARY_LOADED" = true ] && [ -n "$BRANCH_NAME" ]; then
+    if get_git_auto_checkout_branch 2>/dev/null; then
+      git checkout "$BRANCH_NAME" 2>/dev/null || true
+      git pull origin "$BRANCH_NAME" 2>/dev/null || true
+    fi
+  fi
 
   # Run pre-iteration compaction if enabled
   if [ "$COMPACTION_ENABLED" = true ]; then
@@ -928,6 +1042,34 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
   ITERATION_END=$(date +%s)
   ITERATION_DURATION=$((ITERATION_END - ITERATION_START))
 
+  # ---- Post-iteration Git Workflow ----
+  # Check for story sub-branch, merge it to feature branch, optionally push
+  if [ "$GIT_LIBRARY_LOADED" = true ] && [ -n "$BRANCH_NAME" ] && [ -n "$CURRENT_TASK_ID" ]; then
+    STORY_BRANCH=$(get_story_branch_name "$BRANCH_NAME" "$CURRENT_TASK_ID" 2>/dev/null || echo "")
+
+    if [ -n "$STORY_BRANCH" ] && story_branch_exists "$STORY_BRANCH" 2>/dev/null; then
+      echo ""
+      echo -e "${CYAN}Git workflow: merging story branch...${NC}"
+
+      # Get story title for merge commit
+      STORY_TITLE=$(jq -r ".userStories[] | select(.id == \"$CURRENT_TASK_ID\") | .title // \"$CURRENT_TASK_ID\"" "$PRD_FILE" 2>/dev/null)
+
+      # Merge sub-branch into feature branch
+      if merge_story_branch "$BRANCH_NAME" "$STORY_BRANCH" "$CURRENT_TASK_ID" "$STORY_TITLE"; then
+        # Push if enabled and timing is "iteration"
+        if should_push; then
+          PUSH_TIMING=$(get_git_push_timing 2>/dev/null || echo "iteration")
+          if [ "$PUSH_TIMING" = "iteration" ]; then
+            push_branch "$BRANCH_NAME"
+          fi
+        fi
+
+        # Cleanup the story sub-branch
+        cleanup_story_branch "$STORY_BRANCH" false
+      fi
+    fi
+  fi
+
   # Check for RALPH_COMPLETE - must be a standalone line, not part of the prompt
   # The prompt contains "output: RALPH_COMPLETE" so we need to match it as standalone
   if echo "$OUTPUT" | grep -qE '^RALPH_COMPLETE$|^[^:]*RALPH_COMPLETE[^"]*$'; then
@@ -939,6 +1081,28 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
       echo -e "${GREEN}  🎉 Ralph completed all tasks!${NC}"
       echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
       echo -e "Completed at iteration ${YELLOW}$i${NC} | Total time: ${BLUE}$(get_elapsed_time)${NC}"
+
+      # ---- Final Git Workflow ----
+      if [ "$GIT_LIBRARY_LOADED" = true ] && [ -n "$BRANCH_NAME" ]; then
+        echo ""
+
+        # Final push (if timing is "end" or we haven't pushed yet)
+        if should_push; then
+          PUSH_TIMING=$(get_git_push_timing 2>/dev/null || echo "iteration")
+          if [ "$PUSH_TIMING" = "end" ]; then
+            echo -e "${CYAN}Pushing final changes...${NC}"
+            push_branch "$BRANCH_NAME"
+          fi
+        fi
+
+        # Create PR if enabled
+        if should_create_pr; then
+          echo -e "${CYAN}Creating pull request...${NC}"
+          BASE_BRANCH=$(get_git_base_branch 2>/dev/null || echo "main")
+          create_pr "$BRANCH_NAME" "$BASE_BRANCH"
+        fi
+      fi
+
       exit 0
     fi
   fi

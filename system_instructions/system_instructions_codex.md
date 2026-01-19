@@ -26,7 +26,9 @@ Before implementing any new functionality:
 
 1. Read the PRD at `prd.json` (in the ralph directory)
 2. Read the progress log at `progress.txt` (check Codebase Patterns section first)
-3. Check you're on the correct branch from PRD `branchName`. If not, check it out or create from main.
+3. **Create a sub-branch for this story**: `git checkout -b <branchName>/<Story-ID>` from the feature branch.
+   Example: If branchName is `ralph/auth-system` and story is US-003, create `ralph/auth-system/US-003`.
+   This allows Ralph to merge your changes back to the feature branch after verification.
 4. Pick the **highest priority** user story where `passes: false`
 5. Implement that single user story
 6. Run quality checks (typecheck, lint, test - use whatever the project requires)

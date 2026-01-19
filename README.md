@@ -93,6 +93,11 @@ ralph-models.cmd   # Instead of ./ralph-models.sh
   ```bash
   brew install yq
   ```
+- **gh** (GitHub CLI) - Required for PR creation (optional, only needed if using `pr.enabled: true`)
+  ```bash
+  brew install gh
+  gh auth login
+  ```
 
 ### At Least One AI Agent CLI
 - **Claude Code CLI**
@@ -267,6 +272,17 @@ github-copilot:
 gemini:
   model: gemini-2.5-pro  # Options: gemini-2.5-pro, gemini-2.5-flash, gemini-2.0-flash
   # flags: ""
+
+# Git workflow settings (optional, disabled by default)
+git:
+  auto-checkout-branch: true    # Ralph checkouts feature branch before spawning agent
+  base-branch: main             # Branch to create feature branches from
+  push:
+    enabled: false              # Enable automatic push (disabled by default)
+    timing: iteration           # "iteration" (after each story) or "end" (after RALPH_COMPLETE)
+  pr:
+    enabled: false              # Enable PR creation (disabled by default)
+    draft: false                # Create as draft PR
 ```
 
 **Model Selection:**
@@ -392,30 +408,164 @@ cp prd.json.example prd.json
 ### 3. Run Ralph
 
 ```bash
-./ralph.sh [max_iterations] [--no-sleep-prevent]
+./ralph.sh [max_iterations] [options]
 ```
 
 Default is 10 iterations.
 
-**Options:**
+**Core Options:**
 - `max_iterations` - Maximum number of iterations (default: 10)
+- `--verbose` - Enable debug logging
 - `--no-sleep-prevent` - Disable automatic sleep prevention
+- `--timeout SECONDS` - Set timeout per iteration (default: 7200s/2 hours)
+- `--no-timeout` - Disable iteration timeout
+- `--check-update` - Check if Ralph updates are available
+- `--update` - Self-update from source repository
+
+**Git Workflow Options:**
+- `--push` - Enable automatic push after each story (overrides config)
+- `--no-push` - Disable automatic push (overrides config)
+- `--create-pr` - Enable PR creation when all stories complete (overrides config)
+- `--no-pr` - Disable PR creation (overrides config)
+
+**Examples:**
+```bash
+./ralph.sh 20 --verbose              # Run 20 iterations with debug logging
+./ralph.sh --push --create-pr        # Enable push and PR for this run
+./ralph.sh --timeout 3600            # Set 1-hour timeout per iteration
+```
 
 **Features:**
 - ☕ **Sleep Prevention**: Automatically uses `caffeinate` (macOS) or `systemd-inhibit` (Linux) to prevent system sleep during long runs
 - 📊 **Progress Display**: Shows current story, completion progress, and elapsed time
 - ⚠️ **Rate Limit Detection**: Automatically stops if API rate limits are hit
 - 🔄 **Fallback Support**: Tries the fallback agent if the primary agent fails
+- 🌳 **Git Workflow**: Automated branch management, merging, pushing, and PR creation (configurable)
 
 Ralph will:
-1. Create a feature branch (from PRD `branchName`)
-2. Pick the highest priority story where `passes: false`
-3. Implement that single story
-4. Run quality checks (typecheck, tests)
-5. Commit if checks pass
-6. Update `prd.json` to mark story as `passes: true`
-7. Append learnings to `progress.txt`
-8. Repeat until all stories pass or max iterations reached
+1. Ensure feature branch is checked out (from PRD `branchName`)
+2. Pull latest changes from remote
+3. Pick the highest priority story where `passes: false`
+4. Agent creates sub-branch `ralph/feature-name/US-XXX` and implements story
+5. Run quality checks (typecheck, tests)
+6. Commit if checks pass
+7. Merge sub-branch to feature branch with `--no-ff`
+8. Push to remote (if enabled)
+9. Update `prd.json` to mark story as `passes: true`
+10. Append learnings to `progress.txt`
+11. Repeat until all stories pass or max iterations reached
+12. Create PR (if enabled and all stories complete)
+
+## Git Workflow
+
+Ralph implements a sub-branch workflow for better isolation and history tracking:
+
+```
+main (stable)
+  └── ralph/feature-name (feature branch)
+        ├── ralph/feature-name/US-001 (sub-branch per story)
+        │     └── merged back after story completes
+        ├── ralph/feature-name/US-002
+        │     └── merged back after story completes
+        └── PR → main (when all stories complete)
+```
+
+### How It Works
+
+1. **Setup** (`setup-ralph.sh`)
+   - Creates the feature branch specified in `prd.json` (`branchName`)
+   - Pushes to GitHub with upstream tracking: `git push -u origin ralph/feature-name`
+
+2. **Before Each Iteration** (`ralph.sh`)
+   - Ensures you're on the feature branch
+   - Pulls latest changes: `git pull origin ralph/feature-name`
+
+3. **Agent Execution**
+   - Agent creates sub-branch: `git checkout -b ralph/feature-name/US-XXX`
+   - Implements the story on this isolated branch
+   - Commits changes: `git commit -m "feat: US-XXX - Story Title"`
+
+4. **After Story Completes** (`ralph.sh`)
+   - Merges sub-branch to feature branch with `--no-ff` (creates merge commit)
+   - Pushes to remote (if `push.enabled: true` and `timing: iteration`)
+   - Deletes sub-branch locally: `git branch -d ralph/feature-name/US-XXX`
+
+5. **After All Stories Complete** (`ralph.sh`)
+   - Final push (if `push.enabled: true` and `timing: end`)
+   - Creates PR using GitHub CLI: `gh pr create --base main --head ralph/feature-name`
+
+### Configuration
+
+Configure git workflow in `agent.yaml`:
+
+```yaml
+git:
+  # Automatically checkout the feature branch before spawning agent
+  auto-checkout-branch: true
+
+  # Base branch to create feature branches from (usually main or master)
+  base-branch: main
+
+  # Push settings
+  push:
+    # Enable automatic push after each story merge (disabled by default for backward compatibility)
+    enabled: false
+    # When to push: "iteration" (after each story) or "end" (after RALPH_COMPLETE)
+    timing: iteration
+
+  # Pull Request settings
+  pr:
+    # Enable automatic PR creation when all stories complete (disabled by default)
+    enabled: false
+    # Create as draft PR
+    draft: false
+```
+
+### Enabling Git Workflow
+
+**Option 1: Edit agent.yaml**
+
+```yaml
+git:
+  push:
+    enabled: true
+    timing: iteration  # Push after each story
+  pr:
+    enabled: true      # Create PR when done
+```
+
+**Option 2: Use CLI flags**
+
+```bash
+./ralph.sh --push --create-pr
+```
+
+CLI flags override the `agent.yaml` configuration for a single run.
+
+### Requirements
+
+- **GitHub CLI** (`gh`) must be installed and authenticated for PR creation
+  ```bash
+  brew install gh
+  gh auth login
+  ```
+
+- **Git remote** must be configured (automatically set up if using GitHub)
+  ```bash
+  git remote -v  # Check if origin exists
+  ```
+
+### Benefits
+
+- **Isolated Development**: Each story in its own branch prevents conflicts
+- **Clear History**: Merge commits show exactly which changes belong to each story
+- **Review Ready**: PRs are created automatically with summary and test plan
+- **Collaboration**: Push after each story allows team to follow progress
+- **Rollback**: Easy to revert individual stories via merge commit
+
+### Backward Compatibility
+
+Git workflow features are **disabled by default** to maintain backward compatibility with existing Ralph installations. Projects that don't need automated push/PR can run Ralph exactly as before.
 
 ## Files Installed by Setup
 
@@ -432,6 +582,12 @@ your-project/
 ├─ progress.txt                 # Iteration log (auto-generated)
 ├─ AGENTS.md                    # Pattern documentation
 ├─ .last-branch                 # Branch tracking (auto-generated)
+├─ lib/                         # Core library functions
+│  ├─ common.sh                 # Logging, validation, utilities
+│  ├─ git.sh                    # Git workflow operations
+│  ├─ context.sh                # Task state management
+│  ├─ compaction.sh             # Memory compaction
+│  └─ model-refresh.sh          # Model detection
 ├─ system_instructions/         # Agent prompts
 │  ├─ system_instructions.md
 │  ├─ system_instructions_codex.md
@@ -443,8 +599,8 @@ your-project/
 ```
 
 **Git Tracking:**
-- ✓ Commit: `ralph.sh`, `create-prd.sh`, `ralph-models.sh`, `agent.yaml`, `prd.json`, `prd.json.example`, `AGENTS.md`, `system_instructions/`, `skills/`
-- ✗ Ignore: `progress.txt`, `.last-branch`, `.ralph-version`, `.ralph-backup/`, `archive/`, `.ralph-models-cache.json` (automatically added to .gitignore)
+- ✓ Commit: `ralph.sh`, `create-prd.sh`, `ralph-models.sh`, `agent.yaml`, `prd.json`, `prd.json.example`, `AGENTS.md`, `lib/`, `system_instructions/`, `skills/`
+- ✗ Ignore: `progress.txt`, `.last-branch`, `.ralph-version`, `.ralph-backup/`, `archive/`, `.ralph-models-cache.json`, `ralph.log` (automatically added to .gitignore)
 
 ## Key Files
 
@@ -453,7 +609,12 @@ your-project/
 | `ralph.sh` | The bash loop that spawns fresh agent instances |
 | `create-prd.sh` | Automated two-step PRD generation and conversion script |
 | `ralph-models.sh` | Model listing and cache management utility |
-| `agent.yaml` | Configuration for primary/fallback agent selection |
+| `agent.yaml` | Configuration for primary/fallback agent selection and git workflow |
+| `lib/common.sh` | Core utilities: logging, validation, dependency checking |
+| `lib/git.sh` | Git workflow: branch management, merge, push, PR creation |
+| `lib/context.sh` | Task state management with dependency awareness |
+| `lib/compaction.sh` | Memory compaction for long-running sessions |
+| `lib/model-refresh.sh` | Model detection and caching |
 | `system_instructions/` | Agent-specific instruction files |
 | `system_instructions/system_instructions.md` | Instructions for Claude Code |
 | `system_instructions/system_instructions_codex.md` | Instructions for Codex |

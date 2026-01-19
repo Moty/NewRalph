@@ -767,3 +767,38 @@ if [ -d "$TARGET_DIR/.git" ]; then
   fi
   echo ""
 fi
+
+# ---- Feature Branch Setup (for fresh installs) ------------------
+
+if [ -d "$TARGET_DIR/.git" ] && [ "$UPDATE_MODE" = false ] && [ -f "$TARGET_DIR/prd.json" ]; then
+  cd "$TARGET_DIR"
+
+  # Read branch name from prd.json
+  FEATURE_BRANCH=$(jq -r '.branchName // empty' prd.json 2>/dev/null)
+
+  if [ -n "$FEATURE_BRANCH" ] && [ "$FEATURE_BRANCH" != "null" ]; then
+    echo "Setting up feature branch: $FEATURE_BRANCH"
+
+    # Check if branch already exists
+    if git show-ref --verify --quiet "refs/heads/$FEATURE_BRANCH" 2>/dev/null; then
+      echo -e "${YELLOW}Branch $FEATURE_BRANCH already exists locally${NC}"
+    else
+      # Create the feature branch
+      git checkout -b "$FEATURE_BRANCH"
+      echo -e "${GREEN}✓ Created branch: $FEATURE_BRANCH${NC}"
+
+      # Push to remote if origin exists
+      if git remote get-url origin >/dev/null 2>&1; then
+        echo "Pushing branch to remote..."
+        if git push -u origin "$FEATURE_BRANCH" 2>/dev/null; then
+          echo -e "${GREEN}✓ Pushed branch to origin${NC}"
+        else
+          echo -e "${YELLOW}⚠ Could not push to remote (check permissions)${NC}"
+        fi
+      else
+        echo -e "${YELLOW}⚠ No remote 'origin' configured, branch stays local${NC}"
+      fi
+    fi
+    echo ""
+  fi
+fi

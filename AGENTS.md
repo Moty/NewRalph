@@ -104,10 +104,16 @@ bash ralph.sh [max_iterations]
 - `create-prd.sh` - Automated PRD generation and conversion script
 - `ralph.sh` - The bash loop that spawns fresh agent instances
 - `ralph-models.sh` - Model listing and cache management utility
-- `agent.yaml` - Configuration for primary/fallback agent and model selection
+- `agent.yaml` - Configuration for primary/fallback agent, model selection, and git workflow
 - `.ralph-version` - Version tracking file (created in projects)
+- `lib/common.sh` - Core utilities: logging, validation, dependency checking
+- `lib/git.sh` - Git workflow operations: branch management, merge, push, PR creation
+- `lib/context.sh` - Task state management with dependency awareness
+- `lib/compaction.sh` - Memory compaction for long-running sessions
+- `lib/model-refresh.sh` - Model detection and caching
 - `system_instructions/system_instructions.md` - Instructions for Claude Code
 - `system_instructions/system_instructions_codex.md` - Instructions for Codex
+- `system_instructions/system_instructions_copilot.md` - Instructions for GitHub Copilot CLI
 - `prd.json.example` - Example PRD format
 - `skills/prd/` - Skill for generating PRDs
 - `skills/ralph/` - Skill for converting PRDs to JSON
@@ -135,6 +141,28 @@ npm run dev
 - Model selection is also supported for GitHub Copilot via `agent.yaml`
 - Ralph lib scripts must be compatible with bash 3.2 (macOS default) - avoid associative arrays
 - Use jq's `// empty` operator when accessing optional fields to prevent errors
+
+### Git Workflow
+
+Ralph supports automated git branch management via `lib/git.sh`:
+
+- **Sub-branch per story**: Agents create `ralph/feature-name/US-XXX` for each story
+- **Automatic merging**: Ralph merges sub-branches to feature branch with `--no-ff`
+- **Push support**: Optional push after each story or at end (configured in `agent.yaml`)
+- **PR creation**: Optional PR creation via GitHub CLI when all stories complete
+- **Disabled by default**: All git workflow features are opt-in for backward compatibility
+
+Configure in `agent.yaml`:
+```yaml
+git:
+  push:
+    enabled: true      # Enable auto-push
+    timing: iteration  # "iteration" or "end"
+  pr:
+    enabled: true      # Enable PR creation
+```
+
+Or use CLI overrides: `./ralph.sh --push --create-pr`
 
 ## The Pin (Discovery Index)
 
