@@ -13,13 +13,19 @@ Each module entry includes:
 ## Modules
 
 ### Common Libraries
-**Keywords**: common,compaction,context,model,refresh, shared functions, utility library, bash utilities, helper functions, common code, reusable functions
+**Keywords**: builder,checkpointing,common,compaction,context,dynamic,git,model,refresh,repl,semantic, shared functions, utility library, bash utilities, helper functions, common code, reusable functions
 
 **File Paths**:
+- lib/checkpointing.sh
 - lib/common.sh
 - lib/compaction.sh
+- lib/context-builder.sh
 - lib/context.sh
+- lib/dynamic-context.sh
+- lib/git.sh
 - lib/model-refresh.sh
+- lib/repl.sh
+- lib/semantic-compaction.sh
 
 **Spec Link**: N/A
 
@@ -68,11 +74,18 @@ Each module entry includes:
 - agent.yaml
 - create-prd.sh
 - install.sh
+- lib/checkpointing.sh
 - lib/common.sh
 - lib/compaction.sh
+- lib/context-builder.sh
 - lib/context.sh
+- lib/dynamic-context.sh
+- lib/git.sh
 - lib/model-refresh.sh
+- lib/repl.sh
+- lib/semantic-compaction.sh
 - ralph-models.sh
+- ralph-update-all.sh
 - scripts/generate-pin.sh
 
 **Spec Link**: See README.md
