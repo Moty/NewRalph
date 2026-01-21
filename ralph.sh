@@ -1067,7 +1067,12 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
       STORY_TITLE=$(jq -r ".userStories[] | select(.id == \"$CURRENT_TASK_ID\") | .title // \"$CURRENT_TASK_ID\"" "$PRD_FILE" 2>/dev/null)
 
       # Merge sub-branch into feature branch
-      if merge_story_branch "$BRANCH_NAME" "$STORY_BRANCH" "$CURRENT_TASK_ID" "$STORY_TITLE"; then
+      # Return codes: 0=success, 1=failed/not complete, 2=failed/was complete (needs preservation)
+      local merge_result=0
+      merge_story_branch "$BRANCH_NAME" "$STORY_BRANCH" "$CURRENT_TASK_ID" "$STORY_TITLE" || merge_result=$?
+
+      if [ "$merge_result" -eq 0 ]; then
+        # MERGE SUCCESS
         # Push if enabled and timing is "iteration"
         if should_push; then
           PUSH_TIMING=$(get_git_push_timing 2>/dev/null || echo "iteration")
@@ -1078,8 +1083,26 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
 
         # Cleanup the story sub-branch
         cleanup_story_branch "$STORY_BRANCH" false
+
+      elif [ "$merge_result" -eq 2 ]; then
+        # MERGE FAILED but story was marked complete on sub-branch
+        # Preserve the completion status to prevent re-implementation
+        echo -e "${YELLOW}Preserving story completion despite merge conflict...${NC}"
+        preserve_story_completion "$CURRENT_TASK_ID"
+
+        echo -e "${YELLOW}Sub-branch ${STORY_BRANCH} preserved for manual code resolution${NC}"
+        # Append recovery instructions to progress file
+        {
+          echo ""
+          echo "## $(date '+%Y-%m-%d %H:%M') - MERGE CONFLICT (completion preserved)"
+          echo "- Story: $CURRENT_TASK_ID"
+          echo "- Branch: $STORY_BRANCH"
+          echo "- prd.json updated: passes=true"
+          echo "- Recovery: git checkout $BRANCH_NAME && git merge $STORY_BRANCH"
+        } >> "$PROGRESS_FILE"
+
       else
-        # Merge failed - log and notify user
+        # MERGE FAILED, story was not marked complete
         echo -e "${RED}Merge conflict for ${CURRENT_TASK_ID}${NC}"
         echo -e "${YELLOW}Sub-branch ${STORY_BRANCH} preserved for manual resolution${NC}"
 
