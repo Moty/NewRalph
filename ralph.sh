@@ -936,9 +936,15 @@ if [ "$GIT_LIBRARY_LOADED" = true ] && [ -n "$BRANCH_NAME" ]; then
       validate_git_remote || true
     fi
 
-    # Ensure we're on the feature branch
+    # Ensure we're on the feature branch (CRITICAL - must succeed)
     if ! ensure_feature_branch "$BRANCH_NAME"; then
-      echo -e "${YELLOW}Warning: Could not setup feature branch, continuing anyway${NC}"
+      echo -e "${RED}✗ Failed to switch to feature branch: ${BRANCH_NAME}${NC}"
+      echo -e "${YELLOW}This is required for proper git workflow. Please resolve manually:${NC}"
+      echo -e "${YELLOW}  1. Commit or stash your changes: git stash${NC}"
+      echo -e "${YELLOW}  2. Switch to feature branch: git checkout ${BRANCH_NAME}${NC}"
+      echo -e "${YELLOW}  3. Re-run Ralph${NC}"
+      cleanup
+      exit 1
     else
       echo -e "${GREEN}✓ On branch: ${BRANCH_NAME}${NC}"
     fi

@@ -43,6 +43,7 @@ get_git_pr_draft() {
 # Ensure the feature branch exists and we're on it
 # Usage: ensure_feature_branch <branch_name>
 # Creates from base-branch if it doesn't exist
+# Returns 0 on success, 1 on failure
 ensure_feature_branch() {
   local branch_name="$1"
   local base_branch=$(get_git_base_branch)
@@ -54,15 +55,32 @@ ensure_feature_branch() {
 
   log_info "Ensuring feature branch: $branch_name"
 
+  # Stash any uncommitted changes to allow branch switching
+  local stash_needed=false
+  if ! git diff-index --quiet HEAD -- 2>/dev/null; then
+    log_info "Stashing uncommitted changes before branch switch"
+    if git stash push -m "Ralph auto-stash before switching to $branch_name"; then
+      stash_needed=true
+    else
+      log_error "Failed to stash changes, attempting checkout anyway"
+    fi
+  fi
+
+  local checkout_success=false
+
   # Check if branch exists locally
   if git show-ref --verify --quiet "refs/heads/$branch_name" 2>/dev/null; then
     log_debug "Branch $branch_name exists locally"
-    git checkout "$branch_name"
+    if git checkout "$branch_name" 2>/dev/null; then
+      checkout_success=true
+    fi
   # Check if branch exists on remote
   elif git ls-remote --exit-code --heads origin "$branch_name" >/dev/null 2>&1; then
     log_debug "Branch $branch_name exists on remote, checking out"
     git fetch origin "$branch_name"
-    git checkout -b "$branch_name" "origin/$branch_name"
+    if git checkout -b "$branch_name" "origin/$branch_name" 2>/dev/null; then
+      checkout_success=true
+    fi
   else
     # Create new branch from base
     log_info "Creating new branch $branch_name from $base_branch"
@@ -70,19 +88,41 @@ ensure_feature_branch() {
     # Make sure we have the latest base branch
     if git ls-remote --exit-code --heads origin "$base_branch" >/dev/null 2>&1; then
       git fetch origin "$base_branch"
-      git checkout -b "$branch_name" "origin/$base_branch"
+      if git checkout -b "$branch_name" "origin/$base_branch" 2>/dev/null; then
+        checkout_success=true
+      fi
     else
       # No remote, create from local base or current HEAD
       if git show-ref --verify --quiet "refs/heads/$base_branch" 2>/dev/null; then
-        git checkout -b "$branch_name" "$base_branch"
+        if git checkout -b "$branch_name" "$base_branch" 2>/dev/null; then
+          checkout_success=true
+        fi
       else
-        git checkout -b "$branch_name"
+        if git checkout -b "$branch_name" 2>/dev/null; then
+          checkout_success=true
+        fi
       fi
     fi
   fi
 
-  log_info "Now on branch: $(git branch --show-current)"
-  return 0
+  # Restore stashed changes if we stashed them
+  if [ "$stash_needed" = true ]; then
+    log_info "Restoring stashed changes"
+    git stash pop 2>/dev/null || log_warn "Could not restore stashed changes"
+  fi
+
+  # Verify we're on the correct branch
+  local current_branch=$(git branch --show-current 2>/dev/null)
+  if [ "$current_branch" = "$branch_name" ]; then
+    log_info "Now on branch: $current_branch"
+    return 0
+  else
+    log_error "Failed to switch to branch $branch_name (currently on: $current_branch)"
+    echo -e "${RED}✗ Failed to switch to feature branch ${branch_name}${NC}"
+    echo -e "${YELLOW}  Current branch: ${current_branch}${NC}"
+    echo -e "${YELLOW}  Try: git stash && git checkout $branch_name${NC}"
+    return 1
+  fi
 }
 
 # Get the sub-branch name for a story
