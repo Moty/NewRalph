@@ -228,6 +228,10 @@ fi
 if [ -f "$SCRIPT_DIR/lib/context.sh" ]; then
   source "$SCRIPT_DIR/lib/context.sh"
   CONTEXT_SYSTEM_ENABLED=true
+  # Initialize context from PRD if available
+  if [ -f "$PRD_FILE" ]; then
+    import_prd "$PRD_FILE" 2>/dev/null || true
+  fi
 else
   CONTEXT_SYSTEM_ENABLED=false
 fi
@@ -340,10 +344,13 @@ get_current_story() {
   if [ -f "$PRD_FILE" ]; then
     # Use context system if available
     if [ "$CONTEXT_SYSTEM_ENABLED" = true ]; then
-      local ready_tasks=$(get_ready_tasks 2>/dev/null || echo "")
-      if [ -n "$ready_tasks" ]; then
-        echo "$ready_tasks" | head -n 1
-        return
+      local ready_tasks=$(get_ready_tasks 2>/dev/null || echo "[]")
+      if [ "$ready_tasks" != "[]" ] && [ -n "$ready_tasks" ]; then
+        local first_task=$(echo "$ready_tasks" | jq -r '.[0] | "\(.id): \(.title)"' 2>/dev/null)
+        if [ -n "$first_task" ] && [ "$first_task" != "null: null" ]; then
+          echo "$first_task"
+          return
+        fi
       fi
     fi
     
@@ -360,7 +367,7 @@ get_current_story() {
     local ready_story=""
     while IFS= read -r story_json; do
       local story_id=$(echo "$story_json" | jq -r '.id')
-      local blockedBy=$(echo "$story_json" | jq -r '.blockedBy // empty | .[]' 2>/dev/null)
+      local blockedBy=$(echo "$story_json" | jq -r '.blockedBy[]?' 2>/dev/null)
       
       # Check if all dependencies are complete
       local is_ready=true
@@ -993,6 +1000,11 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
     fi
   fi
 
+  # Sync context system from PRD (captures agent's prd.json updates from previous iteration)
+  if [ "$CONTEXT_SYSTEM_ENABLED" = true ] && [ -f "$PRD_FILE" ]; then
+    import_prd "$PRD_FILE" 2>/dev/null || true
+  fi
+
   # Run pre-iteration compaction if enabled
   if [ "$COMPACTION_ENABLED" = true ]; then
     pre_iteration_compact "$PROGRESS_FILE" 2>/dev/null || true
@@ -1066,13 +1078,26 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
 
         # Cleanup the story sub-branch
         cleanup_story_branch "$STORY_BRANCH" false
+      else
+        # Merge failed - log and notify user
+        echo -e "${RED}Merge conflict for ${CURRENT_TASK_ID}${NC}"
+        echo -e "${YELLOW}Sub-branch ${STORY_BRANCH} preserved for manual resolution${NC}"
+
+        # Append recovery instructions to progress file
+        {
+          echo ""
+          echo "## $(date '+%Y-%m-%d %H:%M') - MERGE CONFLICT"
+          echo "- Story: $CURRENT_TASK_ID"
+          echo "- Branch: $STORY_BRANCH"
+          echo "- Recovery: git checkout $BRANCH_NAME && git merge $STORY_BRANCH"
+        } >> "$PROGRESS_FILE"
       fi
     fi
   fi
 
   # Check for RALPH_COMPLETE - must be a standalone line, not part of the prompt
-  # The prompt contains "output: RALPH_COMPLETE" so we need to match it as standalone
-  if echo "$OUTPUT" | grep -qE '^RALPH_COMPLETE$|^[^:]*RALPH_COMPLETE[^"]*$'; then
+  # The prompt contains "output: RALPH_COMPLETE" so we need to match only standalone occurrence
+  if echo "$OUTPUT" | grep -qxE '\s*RALPH_COMPLETE\s*'; then
     # Double-check: verify all stories in PRD are marked as passing
     ALL_PASS=$(jq '[.userStories[].passes] | all' "$PRD_FILE" 2>/dev/null || echo "false")
     if [ "$ALL_PASS" = "true" ]; then
@@ -1085,21 +1110,30 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
       # ---- Final Git Workflow ----
       if [ "$GIT_LIBRARY_LOADED" = true ] && [ -n "$BRANCH_NAME" ]; then
         echo ""
+        local push_succeeded=true
 
         # Final push (if timing is "end" or we haven't pushed yet)
         if should_push; then
           PUSH_TIMING=$(get_git_push_timing 2>/dev/null || echo "iteration")
           if [ "$PUSH_TIMING" = "end" ]; then
             echo -e "${CYAN}Pushing final changes...${NC}"
-            push_branch "$BRANCH_NAME"
+            if ! push_branch "$BRANCH_NAME"; then
+              push_succeeded=false
+              echo -e "${YELLOW}Push failed - PR creation skipped${NC}"
+            fi
           fi
         fi
 
-        # Create PR if enabled
+        # Create PR if enabled (only if push succeeded)
         if should_create_pr; then
-          echo -e "${CYAN}Creating pull request...${NC}"
-          BASE_BRANCH=$(get_git_base_branch 2>/dev/null || echo "main")
-          create_pr "$BRANCH_NAME" "$BASE_BRANCH"
+          if [ "$push_succeeded" = true ]; then
+            echo -e "${CYAN}Creating pull request...${NC}"
+            BASE_BRANCH=$(get_git_base_branch 2>/dev/null || echo "main")
+            create_pr "$BRANCH_NAME" "$BASE_BRANCH"
+          else
+            echo -e "${YELLOW}Skipping PR creation due to push failure${NC}"
+            echo -e "${YELLOW}Push manually: git push -u origin $BRANCH_NAME${NC}"
+          fi
         fi
       fi
 
