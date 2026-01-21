@@ -100,6 +100,72 @@ story_branch_exists() {
   git show-ref --verify --quiet "refs/heads/$branch_name" 2>/dev/null
 }
 
+# Find a story sub-branch even if agent used wrong naming
+# Usage: found_branch=$(find_story_branch <feature_branch> <story_id>)
+# Returns: The actual branch name if found, empty if not
+find_story_branch() {
+  local feature_branch="$1"
+  local story_id="$2"
+
+  # First, check the expected name
+  local expected_branch="${feature_branch}/${story_id}"
+  if story_branch_exists "$expected_branch"; then
+    echo "$expected_branch"
+    return 0
+  fi
+
+  # Search for branches ending with the story ID
+  # This catches cases like: ralph/wrong-name/US-003, wrong-prefix/US-003, etc.
+  local found_branch
+  found_branch=$(git branch --list "*/${story_id}" 2>/dev/null | sed 's/^[* ]*//' | head -1)
+
+  if [ -n "$found_branch" ]; then
+    echo "$found_branch"
+    return 0
+  fi
+
+  # Also try with hyphen separator (e.g., feature-branch-US-003)
+  found_branch=$(git branch --list "*-${story_id}" 2>/dev/null | sed 's/^[* ]*//' | head -1)
+
+  if [ -n "$found_branch" ]; then
+    echo "$found_branch"
+    return 0
+  fi
+
+  return 1
+}
+
+# Validate and report branch naming issues
+# Usage: validate_story_branch <feature_branch> <story_id>
+# Returns: 0 if valid branch found, 1 if no branch, 2 if misnamed branch found
+validate_story_branch() {
+  local feature_branch="$1"
+  local story_id="$2"
+
+  local expected_branch="${feature_branch}/${story_id}"
+  local found_branch
+
+  # Check expected name first
+  if story_branch_exists "$expected_branch"; then
+    return 0
+  fi
+
+  # Try to find misnamed branch
+  found_branch=$(find_story_branch "$feature_branch" "$story_id")
+
+  if [ -n "$found_branch" ]; then
+    log_warn "Branch naming mismatch for $story_id"
+    log_warn "  Expected: $expected_branch"
+    log_warn "  Found:    $found_branch"
+    echo -e "${YELLOW}⚠ Branch naming mismatch for ${story_id}${NC}"
+    echo -e "  Expected: ${CYAN}$expected_branch${NC}"
+    echo -e "  Found:    ${CYAN}$found_branch${NC}"
+    return 2
+  fi
+
+  return 1
+}
+
 # ---- PRD State Functions -----------------------------------------
 
 # Get story passes status from a branch's prd.json

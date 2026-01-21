@@ -1057,9 +1057,21 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
   # ---- Post-iteration Git Workflow ----
   # Check for story sub-branch, merge it to feature branch, optionally push
   if [ "$GIT_LIBRARY_LOADED" = true ] && [ -n "$BRANCH_NAME" ] && [ -n "$CURRENT_TASK_ID" ]; then
-    STORY_BRANCH=$(get_story_branch_name "$BRANCH_NAME" "$CURRENT_TASK_ID" 2>/dev/null || echo "")
+    # Try to find the story branch (handles both correct and misnamed branches)
+    EXPECTED_BRANCH=$(get_story_branch_name "$BRANCH_NAME" "$CURRENT_TASK_ID" 2>/dev/null || echo "")
+    STORY_BRANCH=$(find_story_branch "$BRANCH_NAME" "$CURRENT_TASK_ID" 2>/dev/null || echo "")
 
-    if [ -n "$STORY_BRANCH" ] && story_branch_exists "$STORY_BRANCH" 2>/dev/null; then
+    # Validate branch naming and warn if misnamed
+    if [ -n "$STORY_BRANCH" ] && [ "$STORY_BRANCH" != "$EXPECTED_BRANCH" ]; then
+      echo ""
+      echo -e "${YELLOW}⚠ Branch naming mismatch detected${NC}"
+      echo -e "  Expected: ${CYAN}$EXPECTED_BRANCH${NC}"
+      echo -e "  Found:    ${CYAN}$STORY_BRANCH${NC}"
+      echo -e "  ${YELLOW}Will merge the found branch, but agent should use correct naming.${NC}"
+      log_warn "Branch naming mismatch: expected $EXPECTED_BRANCH, found $STORY_BRANCH"
+    fi
+
+    if [ -n "$STORY_BRANCH" ]; then
       echo ""
       echo -e "${CYAN}Git workflow: merging story branch...${NC}"
 
@@ -1068,7 +1080,7 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
 
       # Merge sub-branch into feature branch
       # Return codes: 0=success, 1=failed/not complete, 2=failed/was complete (needs preservation)
-      local merge_result=0
+      merge_result=0
       merge_story_branch "$BRANCH_NAME" "$STORY_BRANCH" "$CURRENT_TASK_ID" "$STORY_TITLE" || merge_result=$?
 
       if [ "$merge_result" -eq 0 ]; then
