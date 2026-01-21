@@ -275,8 +275,29 @@ merge_story_branch() {
 
   log_info "Merging $story_branch into $feature_branch"
 
+  # Stash any uncommitted changes to allow checkout and merge
+  local stash_needed=false
+  if ! git diff-index --quiet HEAD -- 2>/dev/null; then
+    log_info "Stashing uncommitted changes before merge"
+    if git stash push -m "Ralph auto-stash before merging $story_id"; then
+      stash_needed=true
+    else
+      log_warn "Failed to stash changes, attempting merge anyway"
+    fi
+  fi
+
   # Ensure we're on the feature branch
-  git checkout "$feature_branch"
+  if ! git checkout "$feature_branch" 2>/dev/null; then
+    log_error "Failed to checkout $feature_branch for merge"
+    # Restore stash if we created one
+    if [ "$stash_needed" = true ]; then
+      git stash pop 2>/dev/null || true
+    fi
+    if [ "$story_passes" = "true" ]; then
+      return 2
+    fi
+    return 1
+  fi
 
   # Pull latest changes to feature branch (in case of remote updates)
   git pull origin "$feature_branch" 2>/dev/null || true
@@ -286,12 +307,23 @@ merge_story_branch() {
   if git merge --no-ff "$story_branch" -m "$merge_msg"; then
     log_info "Successfully merged $story_branch"
     echo -e "${GREEN}✓ Merged ${story_id}${NC}"
+    # Restore stash after successful merge
+    if [ "$stash_needed" = true ]; then
+      log_info "Restoring stashed changes after merge"
+      git stash pop 2>/dev/null || log_warn "Could not restore stashed changes (may have been included in merge)"
+    fi
     return 0
   else
     log_error "Merge conflict detected for $story_branch"
     echo -e "${RED}✗ Merge conflict for ${story_id}${NC}"
     echo -e "${YELLOW}Attempting to abort merge and continue...${NC}"
     git merge --abort 2>/dev/null || true
+
+    # Restore stash after failed merge
+    if [ "$stash_needed" = true ]; then
+      log_info "Restoring stashed changes after merge abort"
+      git stash pop 2>/dev/null || log_warn "Could not restore stashed changes"
+    fi
 
     # Return 2 if story was marked complete (needs preservation)
     if [ "$story_passes" = "true" ]; then
