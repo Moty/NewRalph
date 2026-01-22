@@ -362,6 +362,10 @@ progress.txt
 ralph.log
 .ralph-models-cache.json
 archive/
+.ralph/repl/
+.ralph/context.json
+.DS_Store
+**/.DS_Store
 EOF
   fi
 else
@@ -374,6 +378,10 @@ progress.txt
 ralph.log
 .ralph-models-cache.json
 archive/
+.ralph/repl/
+.ralph/context.json
+.DS_Store
+**/.DS_Store
 EOF
 fi
 

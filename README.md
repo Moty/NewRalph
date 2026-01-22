@@ -446,27 +446,24 @@ Ralph will:
 1. Ensure feature branch is checked out (from PRD `branchName`)
 2. Pull latest changes from remote
 3. Pick the highest priority story where `passes: false`
-4. Agent creates sub-branch `ralph/feature-name/US-XXX` and implements story
+4. Agent verifies it's on the feature branch and implements story
 5. Run quality checks (typecheck, tests)
-6. Commit if checks pass
-7. Merge sub-branch to feature branch with `--no-ff`
-8. Push to remote (if enabled)
-9. Update `prd.json` to mark story as `passes: true`
-10. Append learnings to `progress.txt`
-11. Repeat until all stories pass or max iterations reached
-12. Create PR (if enabled and all stories complete)
+6. Commit directly to the feature branch
+7. Push to remote (if enabled)
+8. Update `prd.json` to mark story as `passes: true`
+9. Append learnings to `progress.txt`
+10. Repeat until all stories pass or max iterations reached
+11. Create PR (if enabled and all stories complete)
 
 ## Git Workflow
 
-Ralph implements a sub-branch workflow for better isolation and history tracking:
+Ralph uses a linear commit workflow on the feature branch:
 
 ```
 main (stable)
   └── ralph/feature-name (feature branch)
-        ├── ralph/feature-name/US-001 (sub-branch per story)
-        │     └── merged back after story completes
-        ├── ralph/feature-name/US-002
-        │     └── merged back after story completes
+        ├── commit: feat: US-001 - Story Title
+        ├── commit: feat: US-002 - Story Title
         └── PR → main (when all stories complete)
 ```
 
@@ -481,14 +478,12 @@ main (stable)
    - Pulls latest changes: `git pull origin ralph/feature-name`
 
 3. **Agent Execution**
-   - Agent creates sub-branch: `git checkout -b ralph/feature-name/US-XXX`
-   - Implements the story on this isolated branch
-   - Commits changes: `git commit -m "feat: US-XXX - Story Title"`
+   - Agent verifies it's on the feature branch (checks out if not)
+   - Implements the story and commits directly: `git commit -m "feat: US-XXX - Story Title"`
 
 4. **After Story Completes** (`ralph.sh`)
-   - Merges sub-branch to feature branch with `--no-ff` (creates merge commit)
+   - Verifies we're still on the feature branch (recovers if agent switched)
    - Pushes to remote (if `push.enabled: true` and `timing: iteration`)
-   - Deletes sub-branch locally: `git branch -d ralph/feature-name/US-XXX`
 
 5. **After All Stories Complete** (`ralph.sh`)
    - Final push (if `push.enabled: true` and `timing: end`)
@@ -508,7 +503,7 @@ git:
 
   # Push settings
   push:
-    # Enable automatic push after each story merge (disabled by default for backward compatibility)
+    # Enable automatic push after each story (disabled by default for backward compatibility)
     enabled: false
     # When to push: "iteration" (after each story) or "end" (after RALPH_COMPLETE)
     timing: iteration
@@ -557,11 +552,11 @@ CLI flags override the `agent.yaml` configuration for a single run.
 
 ### Benefits
 
-- **Isolated Development**: Each story in its own branch prevents conflicts
-- **Clear History**: Merge commits show exactly which changes belong to each story
+- **No Merge Conflicts**: Direct commits eliminate sub-branch merge issues
+- **Clear History**: Each story gets a `feat: US-XXX` commit for easy identification
 - **Review Ready**: PRs are created automatically with summary and test plan
 - **Collaboration**: Push after each story allows team to follow progress
-- **Rollback**: Easy to revert individual stories via merge commit
+- **Rollback**: Easy to revert individual stories via commit
 
 ### Backward Compatibility
 

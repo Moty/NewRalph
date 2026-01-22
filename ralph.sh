@@ -1061,77 +1061,24 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
   ITERATION_DURATION=$((ITERATION_END - ITERATION_START))
 
   # ---- Post-iteration Git Workflow ----
-  # Check for story sub-branch, merge it to feature branch, optionally push
-  if [ "$GIT_LIBRARY_LOADED" = true ] && [ -n "$BRANCH_NAME" ] && [ -n "$CURRENT_TASK_ID" ]; then
-    # Try to find the story branch (handles both correct and misnamed branches)
-    EXPECTED_BRANCH=$(get_story_branch_name "$BRANCH_NAME" "$CURRENT_TASK_ID" 2>/dev/null || echo "")
-    STORY_BRANCH=$(find_story_branch "$BRANCH_NAME" "$CURRENT_TASK_ID" 2>/dev/null || echo "")
-
-    # Validate branch naming and warn if misnamed
-    if [ -n "$STORY_BRANCH" ] && [ "$STORY_BRANCH" != "$EXPECTED_BRANCH" ]; then
-      echo ""
-      echo -e "${YELLOW}⚠ Branch naming mismatch detected${NC}"
-      echo -e "  Expected: ${CYAN}$EXPECTED_BRANCH${NC}"
-      echo -e "  Found:    ${CYAN}$STORY_BRANCH${NC}"
-      echo -e "  ${YELLOW}Will merge the found branch, but agent should use correct naming.${NC}"
-      log_warn "Branch naming mismatch: expected $EXPECTED_BRANCH, found $STORY_BRANCH"
+  # Verify we're still on the feature branch; push if enabled
+  if [ "$GIT_LIBRARY_LOADED" = true ] && [ -n "$BRANCH_NAME" ]; then
+    CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo "")
+    if [ -n "$CURRENT_BRANCH" ] && [ "$CURRENT_BRANCH" != "$BRANCH_NAME" ]; then
+      echo -e "${YELLOW}⚠ Agent switched to branch: ${CURRENT_BRANCH}, returning to ${BRANCH_NAME}${NC}"
+      log_warn "Agent switched to $CURRENT_BRANCH, recovering to $BRANCH_NAME"
+      if ! git diff-index --quiet HEAD -- 2>/dev/null; then
+        git add -A
+        git commit -m "chore: auto-commit uncommitted agent work before branch restore" 2>/dev/null || true
+      fi
+      git checkout "$BRANCH_NAME" 2>/dev/null || true
     fi
 
-    if [ -n "$STORY_BRANCH" ]; then
-      echo ""
-      echo -e "${CYAN}Git workflow: merging story branch...${NC}"
-
-      # Get story title for merge commit
-      STORY_TITLE=$(jq -r ".userStories[] | select(.id == \"$CURRENT_TASK_ID\") | .title // \"$CURRENT_TASK_ID\"" "$PRD_FILE" 2>/dev/null)
-
-      # Merge sub-branch into feature branch
-      # Return codes: 0=success, 1=failed/not complete, 2=failed/was complete (needs preservation)
-      merge_result=0
-      merge_story_branch "$BRANCH_NAME" "$STORY_BRANCH" "$CURRENT_TASK_ID" "$STORY_TITLE" || merge_result=$?
-
-      if [ "$merge_result" -eq 0 ]; then
-        # MERGE SUCCESS
-        # Push if enabled and timing is "iteration"
-        if should_push; then
-          PUSH_TIMING=$(get_git_push_timing 2>/dev/null || echo "iteration")
-          if [ "$PUSH_TIMING" = "iteration" ]; then
-            push_branch "$BRANCH_NAME"
-          fi
-        fi
-
-        # Cleanup the story sub-branch
-        cleanup_story_branch "$STORY_BRANCH" false
-
-      elif [ "$merge_result" -eq 2 ]; then
-        # MERGE FAILED but story was marked complete on sub-branch
-        # Preserve the completion status to prevent re-implementation
-        echo -e "${YELLOW}Preserving story completion despite merge conflict...${NC}"
-        preserve_story_completion "$CURRENT_TASK_ID"
-
-        echo -e "${YELLOW}Sub-branch ${STORY_BRANCH} preserved for manual code resolution${NC}"
-        # Append recovery instructions to progress file
-        {
-          echo ""
-          echo "## $(date '+%Y-%m-%d %H:%M') - MERGE CONFLICT (completion preserved)"
-          echo "- Story: $CURRENT_TASK_ID"
-          echo "- Branch: $STORY_BRANCH"
-          echo "- prd.json updated: passes=true"
-          echo "- Recovery: git checkout $BRANCH_NAME && git merge $STORY_BRANCH"
-        } >> "$PROGRESS_FILE"
-
-      else
-        # MERGE FAILED, story was not marked complete
-        echo -e "${RED}Merge conflict for ${CURRENT_TASK_ID}${NC}"
-        echo -e "${YELLOW}Sub-branch ${STORY_BRANCH} preserved for manual resolution${NC}"
-
-        # Append recovery instructions to progress file
-        {
-          echo ""
-          echo "## $(date '+%Y-%m-%d %H:%M') - MERGE CONFLICT"
-          echo "- Story: $CURRENT_TASK_ID"
-          echo "- Branch: $STORY_BRANCH"
-          echo "- Recovery: git checkout $BRANCH_NAME && git merge $STORY_BRANCH"
-        } >> "$PROGRESS_FILE"
+    # Push if enabled and timing is "iteration"
+    if should_push; then
+      PUSH_TIMING=$(get_git_push_timing 2>/dev/null || echo "iteration")
+      if [ "$PUSH_TIMING" = "iteration" ]; then
+        push_branch "$BRANCH_NAME"
       fi
     fi
   fi

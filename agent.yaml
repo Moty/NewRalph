@@ -50,7 +50,7 @@ gemini:
   # flags: ""
 
 # Git workflow settings
-# Ralph creates sub-branches per story, merges them to feature branch, and optionally pushes/creates PRs
+# Agents commit directly to the feature branch. Ralph optionally pushes and creates PRs.
 git:
   # Automatically checkout the feature branch before spawning agent
   auto-checkout-branch: true

@@ -132,8 +132,8 @@ Interactive visualization at https://snarktank.github.io/ralph/ - click through 
 
 Ralph supports automated git branch management via `lib/git.sh`:
 
-- **Sub-branch per story**: Agents create `ralph/feature-name/US-XXX` for each story
-- **Automatic merging**: Ralph merges sub-branches to feature branch with `--no-ff`
+- **Direct commits**: Agents commit directly to the feature branch (no sub-branches)
+- **Branch verification**: Ralph verifies the agent stays on the feature branch after each iteration
 - **Push support**: Optional push after each story or at end (configured in `agent.yaml`)
 - **PR creation**: Optional PR creation via GitHub CLI when all stories complete
 - **Disabled by default**: All git workflow features are opt-in for backward compatibility

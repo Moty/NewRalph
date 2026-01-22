@@ -26,18 +26,11 @@ Before implementing any new functionality:
 
 1. Read the PRD at `prd.json` (in the ralph directory)
 2. Read the progress log at `progress.txt` (check Codebase Patterns section first)
-3. **Create a sub-branch for this story** (CRITICAL - exact naming required):
-   - First, read the `branchName` field from `prd.json` - use it EXACTLY as written
-   - Create sub-branch: `git checkout -b <branchName>/<Story-ID>`
-   - The Story-ID must match EXACTLY (e.g., `US-003`, not `us-003` or `US003`)
-
-   **Example**: If prd.json has `"branchName": "ralph/auth-system"` and story is `US-003`:
-   - ✅ Correct: `git checkout -b ralph/auth-system/US-003`
-   - ❌ Wrong: `git checkout -b ralph/auth/US-003` (missing "system")
-   - ❌ Wrong: `git checkout -b ralph-auth-system-US-003` (wrong format)
-
-   **Why this matters**: Ralph uses this exact naming pattern to find and merge your sub-branch.
-   If the branch name doesn't match, your work won't be merged and progress will be lost.
+3. **Verify you are on the feature branch** (CRITICAL):
+   - Read the `branchName` field from `prd.json`
+   - Run: `git branch --show-current`
+   - If NOT on the correct branch: `git checkout <branchName>`
+   - Do NOT create sub-branches. Commit directly to the feature branch.
 4. Pick the **highest priority** user story where `passes: false`
 5. Implement that single user story
 6. Run quality checks (typecheck, lint, test - use whatever the project requires)

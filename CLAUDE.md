@@ -66,7 +66,7 @@ View the interactive flowchart at: https://snarktank.github.io/ralph/
 - `context.sh` - Task state management with dependency awareness
 - `context-builder.sh` - Builds context for agent prompts
 - `model-refresh.sh` - Model detection and caching
-- `git.sh` - Git workflow operations (branch management, merge, push, PR creation)
+- `git.sh` - Git workflow operations (branch management, push, PR creation)
 
 **Bash compatibility**: All lib scripts must work with bash 3.2 (macOS default). Avoid associative arrays. Use `jq`'s `// empty` operator when accessing optional JSON fields.
 
@@ -158,23 +158,21 @@ gemini:
 
 ## Git Workflow Configuration
 
-Ralph uses a sub-branch workflow for better isolation and history:
+Ralph uses a linear commit workflow on the feature branch:
 
 ```
 main (stable)
   └── ralph/feature-name (feature branch)
-        ├── ralph/feature-name/US-001 (sub-branch per story)
-        │     └── merged back after story completes
-        ├── ralph/feature-name/US-002
-        │     └── merged back after story completes
+        ├── commit: feat: US-001 - Story Title
+        ├── commit: feat: US-002 - Story Title
         └── PR → main (when all stories complete)
 ```
 
 ### Workflow Summary
 1. **setup-ralph.sh** creates the feature branch `ralph/feature-name` and pushes to GitHub
 2. **ralph.sh** ensures the feature branch is checked out before each iteration
-3. **Agent** creates sub-branch `ralph/feature-name/US-XXX` and commits there
-4. **ralph.sh** merges sub-branch → feature branch with `--no-ff`, pushes, and deletes sub-branch
+3. **Agent** verifies it's on the feature branch and commits directly there
+4. **ralph.sh** verifies branch after iteration, pushes if enabled
 5. **ralph.sh** creates PR from feature branch → main when RALPH_COMPLETE
 
 ### Git Configuration (agent.yaml)

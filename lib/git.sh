@@ -1,5 +1,5 @@
 #!/bin/bash
-# Ralph Git Library - Git operations for branch management, merging, pushing, and PRs
+# Ralph Git Library - Git operations for branch management, pushing, and PRs
 # Source this file from ralph.sh: source "$SCRIPT_DIR/lib/git.sh"
 
 # ---- Git Configuration Getters -----------------------------------
@@ -125,102 +125,28 @@ ensure_feature_branch() {
   fi
 }
 
-# Get the sub-branch name for a story
-# Usage: get_story_branch_name <feature_branch> <story_id>
-get_story_branch_name() {
-  local feature_branch="$1"
-  local story_id="$2"
-  echo "${feature_branch}/${story_id}"
-}
+# Verify we're on the expected feature branch
+# Usage: verify_on_feature_branch <expected_branch>
+# Returns 0 if on correct branch (or successfully switched), 1 on failure
+verify_on_feature_branch() {
+  local expected_branch="$1"
+  local current_branch=$(git branch --show-current 2>/dev/null)
 
-# Check if a story sub-branch exists
-# Usage: story_branch_exists <branch_name>
-story_branch_exists() {
-  local branch_name="$1"
-  git show-ref --verify --quiet "refs/heads/$branch_name" 2>/dev/null
-}
-
-# Find a story sub-branch even if agent used wrong naming
-# Usage: found_branch=$(find_story_branch <feature_branch> <story_id>)
-# Returns: The actual branch name if found, empty if not
-find_story_branch() {
-  local feature_branch="$1"
-  local story_id="$2"
-
-  # First, check the expected name
-  local expected_branch="${feature_branch}/${story_id}"
-  if story_branch_exists "$expected_branch"; then
-    echo "$expected_branch"
+  if [ "$current_branch" = "$expected_branch" ]; then
     return 0
   fi
 
-  # Search for branches ending with the story ID
-  # This catches cases like: ralph/wrong-name/US-003, wrong-prefix/US-003, etc.
-  local found_branch
-  found_branch=$(git branch --list "*/${story_id}" 2>/dev/null | sed 's/^[* ]*//' | head -1)
-
-  if [ -n "$found_branch" ]; then
-    echo "$found_branch"
+  log_warn "Not on expected branch. Expected: $expected_branch, Current: $current_branch"
+  if git checkout "$expected_branch" 2>/dev/null; then
+    log_info "Recovered: switched to $expected_branch"
     return 0
   fi
 
-  # Also try with hyphen separator (e.g., feature-branch-US-003)
-  found_branch=$(git branch --list "*-${story_id}" 2>/dev/null | sed 's/^[* ]*//' | head -1)
-
-  if [ -n "$found_branch" ]; then
-    echo "$found_branch"
-    return 0
-  fi
-
-  return 1
-}
-
-# Validate and report branch naming issues
-# Usage: validate_story_branch <feature_branch> <story_id>
-# Returns: 0 if valid branch found, 1 if no branch, 2 if misnamed branch found
-validate_story_branch() {
-  local feature_branch="$1"
-  local story_id="$2"
-
-  local expected_branch="${feature_branch}/${story_id}"
-  local found_branch
-
-  # Check expected name first
-  if story_branch_exists "$expected_branch"; then
-    return 0
-  fi
-
-  # Try to find misnamed branch
-  found_branch=$(find_story_branch "$feature_branch" "$story_id")
-
-  if [ -n "$found_branch" ]; then
-    log_warn "Branch naming mismatch for $story_id"
-    log_warn "  Expected: $expected_branch"
-    log_warn "  Found:    $found_branch"
-    echo -e "${YELLOW}⚠ Branch naming mismatch for ${story_id}${NC}"
-    echo -e "  Expected: ${CYAN}$expected_branch${NC}"
-    echo -e "  Found:    ${CYAN}$found_branch${NC}"
-    return 2
-  fi
-
+  log_error "Failed to switch to $expected_branch"
   return 1
 }
 
 # ---- PRD State Functions -----------------------------------------
-
-# Get story passes status from a branch's prd.json
-# Usage: status=$(get_story_passes_from_branch <branch_name> <story_id>)
-# Returns: "true" or "false" (or empty if not found)
-get_story_passes_from_branch() {
-  local branch="$1"
-  local story_id="$2"
-  local prd_file="${PRD_FILE:-prd.json}"
-
-  # Get prd.json content from specified branch without switching
-  git show "$branch:$prd_file" 2>/dev/null | \
-    jq -r --arg id "$story_id" \
-      '.userStories[] | select(.id == $id) | .passes // false'
-}
 
 # Preserve story completion status after merge conflict
 # Usage: preserve_story_completion <story_id>
@@ -253,110 +179,6 @@ preserve_story_completion() {
   log_info "Preserved completion status for $story_id"
   echo -e "${GREEN}✓ Preserved ${story_id} completion status${NC}"
   return 0
-}
-
-# ---- Merge Functions ---------------------------------------------
-
-# Merge a story sub-branch into the feature branch
-# Usage: merge_story_branch <feature_branch> <story_branch> <story_id> [story_title]
-# Returns:
-#   0 = merge succeeded
-#   1 = merge failed, story was NOT marked complete on sub-branch
-#   2 = merge failed, story WAS marked complete on sub-branch (needs preservation)
-merge_story_branch() {
-  local feature_branch="$1"
-  local story_branch="$2"
-  local story_id="$3"
-  local story_title="${4:-$story_id}"
-
-  # BEFORE merge: check if story is marked complete on sub-branch
-  local story_passes=$(get_story_passes_from_branch "$story_branch" "$story_id")
-  log_debug "Story $story_id passes status on $story_branch: $story_passes"
-
-  log_info "Merging $story_branch into $feature_branch"
-
-  # Stash any uncommitted changes to allow checkout and merge
-  local stash_needed=false
-  if ! git diff-index --quiet HEAD -- 2>/dev/null; then
-    log_info "Stashing uncommitted changes before merge"
-    if git stash push -m "Ralph auto-stash before merging $story_id"; then
-      stash_needed=true
-    else
-      log_warn "Failed to stash changes, attempting merge anyway"
-    fi
-  fi
-
-  # Ensure we're on the feature branch
-  if ! git checkout "$feature_branch" 2>/dev/null; then
-    log_error "Failed to checkout $feature_branch for merge"
-    # Restore stash if we created one
-    if [ "$stash_needed" = true ]; then
-      git stash pop 2>/dev/null || true
-    fi
-    if [ "$story_passes" = "true" ]; then
-      return 2
-    fi
-    return 1
-  fi
-
-  # Pull latest changes to feature branch (in case of remote updates)
-  git pull origin "$feature_branch" 2>/dev/null || true
-
-  # Merge the story branch with --no-ff for clear merge commit
-  local merge_msg="Merge $story_id: $story_title"
-  if git merge --no-ff "$story_branch" -m "$merge_msg"; then
-    log_info "Successfully merged $story_branch"
-    echo -e "${GREEN}✓ Merged ${story_id}${NC}"
-    # Restore stash after successful merge
-    if [ "$stash_needed" = true ]; then
-      log_info "Restoring stashed changes after merge"
-      git stash pop 2>/dev/null || log_warn "Could not restore stashed changes (may have been included in merge)"
-    fi
-    return 0
-  else
-    log_error "Merge conflict detected for $story_branch"
-    echo -e "${RED}✗ Merge conflict for ${story_id}${NC}"
-    echo -e "${YELLOW}Attempting to abort merge and continue...${NC}"
-    git merge --abort 2>/dev/null || true
-
-    # Restore stash after failed merge
-    if [ "$stash_needed" = true ]; then
-      log_info "Restoring stashed changes after merge abort"
-      git stash pop 2>/dev/null || log_warn "Could not restore stashed changes"
-    fi
-
-    # Return 2 if story was marked complete (needs preservation)
-    if [ "$story_passes" = "true" ]; then
-      log_info "Story $story_id was complete on sub-branch, needs preservation"
-      return 2
-    fi
-    return 1
-  fi
-}
-
-# ---- Cleanup Functions -------------------------------------------
-
-# Delete a story sub-branch locally and optionally on remote
-# Usage: cleanup_story_branch <branch_name> [delete_remote]
-cleanup_story_branch() {
-  local branch_name="$1"
-  local delete_remote="${2:-false}"
-
-  log_info "Cleaning up branch: $branch_name"
-
-  # Delete local branch
-  if git show-ref --verify --quiet "refs/heads/$branch_name" 2>/dev/null; then
-    git branch -d "$branch_name" 2>/dev/null || git branch -D "$branch_name" 2>/dev/null || true
-    log_debug "Deleted local branch: $branch_name"
-  fi
-
-  # Optionally delete remote branch
-  if [ "$delete_remote" = "true" ]; then
-    if git ls-remote --exit-code --heads origin "$branch_name" >/dev/null 2>&1; then
-      git push origin --delete "$branch_name" 2>/dev/null || true
-      log_debug "Deleted remote branch: $branch_name"
-    fi
-  fi
 }
 
 # ---- Push Functions ----------------------------------------------
