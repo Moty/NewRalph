@@ -1025,6 +1025,11 @@ fi
 
 start_sleep_prevention
 
+# Clean up stale branches from previous runs (merged sub-branches)
+if [ "$GIT_LIBRARY_LOADED" = true ] && [ -n "$BRANCH_NAME" ]; then
+  cleanup_merged_branches
+fi
+
 for i in $(seq 1 "$MAX_ITERATIONS"); do
   ITERATION_START=$(date +%s)
 

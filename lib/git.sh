@@ -46,6 +46,36 @@ get_git_pr_auto_merge() {
 
 # ---- Branch Management Functions ---------------------------------
 
+# Delete local branches that have been merged into the current branch
+# Skips the current branch and base branch (main). Useful for cleaning up
+# stale sub-branches from old Ralph workflows.
+# Usage: cleanup_merged_branches
+cleanup_merged_branches() {
+  local current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+  local base_branch=$(get_git_base_branch 2>/dev/null || echo "main")
+  local deleted=0
+
+  # Get branches merged into current branch, excluding current and base
+  local merged_branches
+  merged_branches=$(git branch --merged 2>/dev/null | grep -v '^\*' | grep -v "^[[:space:]]*${base_branch}$" | sed 's/^[[:space:]]*//')
+
+  if [ -z "$merged_branches" ]; then
+    return 0
+  fi
+
+  while IFS= read -r branch; do
+    [ -z "$branch" ] && continue
+    # Skip the current branch (safety check)
+    [ "$branch" = "$current_branch" ] && continue
+    git branch -d "$branch" >/dev/null 2>&1 && ((deleted++)) || true
+  done <<< "$merged_branches"
+
+  if [ "$deleted" -gt 0 ]; then
+    log_info "Cleaned up $deleted merged branch(es)"
+    echo -e "${GREEN}✓ Cleaned up $deleted merged branch(es)${NC}"
+  fi
+}
+
 # Ensure the feature branch exists and we're on it
 # Usage: ensure_feature_branch <branch_name>
 # Creates from base-branch if it doesn't exist
