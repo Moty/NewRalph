@@ -121,22 +121,21 @@ ensure_feature_branch() {
     # Create new branch from base
     log_info "Creating new branch $branch_name from $base_branch"
 
-    # Make sure we have the latest base branch
+    # Fetch latest from remote (for awareness) but create from LOCAL base branch
+    # to include any local commits (e.g., new prd.json from create-prd.sh)
     if git ls-remote --exit-code --heads origin "$base_branch" >/dev/null 2>&1; then
       git fetch origin "$base_branch"
-      if git checkout -b "$branch_name" "origin/$base_branch" 2>/dev/null; then
+    fi
+
+    # Create from local base branch (includes unpushed commits like new prd.json)
+    if git show-ref --verify --quiet "refs/heads/$base_branch" 2>/dev/null; then
+      if git checkout -b "$branch_name" "$base_branch" 2>/dev/null; then
         checkout_success=true
       fi
     else
-      # No remote, create from local base or current HEAD
-      if git show-ref --verify --quiet "refs/heads/$base_branch" 2>/dev/null; then
-        if git checkout -b "$branch_name" "$base_branch" 2>/dev/null; then
-          checkout_success=true
-        fi
-      else
-        if git checkout -b "$branch_name" 2>/dev/null; then
-          checkout_success=true
-        fi
+      # No local base branch, fall back to current HEAD
+      if git checkout -b "$branch_name" 2>/dev/null; then
+        checkout_success=true
       fi
     fi
   fi
