@@ -185,12 +185,12 @@ git:
   auto-checkout-branch: true    # Ralph checkouts feature branch before spawning agent
   base-branch: main             # Branch to create feature branches from
   push:
-    enabled: false              # Disabled by default for backward compatibility
+    enabled: true               # Push after each iteration
     timing: iteration           # "iteration" (after each story) or "end" (after RALPH_COMPLETE)
   pr:
-    enabled: false              # Disabled by default
+    enabled: true               # Create PR when all stories complete
     draft: false                # Create as draft PR
-    auto-merge: false           # Merge PR into main after creation
+    auto-merge: true            # Merge PR into main after creation
 ```
 
 ### CLI Overrides
