@@ -168,21 +168,41 @@ merge_agent_yaml() {
   local user_fallback=$(yq '.agent.fallback // ""' "$old_yaml" 2>/dev/null)
   local user_claude_model=$(yq '.claude-code.model // ""' "$old_yaml" 2>/dev/null)
   local user_codex_model=$(yq '.codex.model // ""' "$old_yaml" 2>/dev/null)
+  local user_codex_approval=$(yq '.codex.approval-mode // ""' "$old_yaml" 2>/dev/null)
+  local user_codex_sandbox=$(yq '.codex.sandbox // ""' "$old_yaml" 2>/dev/null)
   local user_copilot_model=$(yq '.github-copilot.model // ""' "$old_yaml" 2>/dev/null)
   local user_copilot_approval=$(yq '.github-copilot.tool-approval // ""' "$old_yaml" 2>/dev/null)
   local user_gemini_model=$(yq '.gemini.model // ""' "$old_yaml" 2>/dev/null)
-  
+  local user_gemini_approval=$(yq '.gemini.approval-mode // ""' "$old_yaml" 2>/dev/null)
+  local user_git_push_enabled=$(yq '.git.push.enabled // ""' "$old_yaml" 2>/dev/null)
+  local user_git_push_timing=$(yq '.git.push.timing // ""' "$old_yaml" 2>/dev/null)
+  local user_git_pr_enabled=$(yq '.git.pr.enabled // ""' "$old_yaml" 2>/dev/null)
+  local user_git_pr_draft=$(yq '.git.pr.draft // ""' "$old_yaml" 2>/dev/null)
+  local user_git_base_branch=$(yq '.git.base-branch // ""' "$old_yaml" 2>/dev/null)
+  local user_git_auto_checkout=$(yq '.git.auto-checkout-branch // ""' "$old_yaml" 2>/dev/null)
+
   # Start with new template (has new options)
   cp "$new_yaml" "$temp_yaml"
-  
-  # Restore user's settings
+
+  # Restore user's agent settings
   [ -n "$user_primary" ] && [ "$user_primary" != "null" ] && yq -i ".agent.primary = \"$user_primary\"" "$temp_yaml"
   [ -n "$user_fallback" ] && [ "$user_fallback" != "null" ] && [ "$user_fallback" != "" ] && yq -i ".agent.fallback = \"$user_fallback\"" "$temp_yaml"
   [ -n "$user_claude_model" ] && [ "$user_claude_model" != "null" ] && yq -i ".claude-code.model = \"$user_claude_model\"" "$temp_yaml"
   [ -n "$user_codex_model" ] && [ "$user_codex_model" != "null" ] && yq -i ".codex.model = \"$user_codex_model\"" "$temp_yaml"
+  [ -n "$user_codex_approval" ] && [ "$user_codex_approval" != "null" ] && yq -i ".codex.approval-mode = \"$user_codex_approval\"" "$temp_yaml"
+  [ -n "$user_codex_sandbox" ] && [ "$user_codex_sandbox" != "null" ] && yq -i ".codex.sandbox = \"$user_codex_sandbox\"" "$temp_yaml"
   [ -n "$user_copilot_model" ] && [ "$user_copilot_model" != "null" ] && yq -i ".github-copilot.model = \"$user_copilot_model\"" "$temp_yaml"
   [ -n "$user_copilot_approval" ] && [ "$user_copilot_approval" != "null" ] && yq -i ".github-copilot.tool-approval = \"$user_copilot_approval\"" "$temp_yaml"
   [ -n "$user_gemini_model" ] && [ "$user_gemini_model" != "null" ] && yq -i ".gemini.model = \"$user_gemini_model\"" "$temp_yaml"
+  [ -n "$user_gemini_approval" ] && [ "$user_gemini_approval" != "null" ] && yq -i ".gemini.approval-mode = \"$user_gemini_approval\"" "$temp_yaml"
+
+  # Restore user's git settings
+  [ -n "$user_git_push_enabled" ] && [ "$user_git_push_enabled" != "null" ] && yq -i ".git.push.enabled = $user_git_push_enabled" "$temp_yaml"
+  [ -n "$user_git_push_timing" ] && [ "$user_git_push_timing" != "null" ] && yq -i ".git.push.timing = \"$user_git_push_timing\"" "$temp_yaml"
+  [ -n "$user_git_pr_enabled" ] && [ "$user_git_pr_enabled" != "null" ] && yq -i ".git.pr.enabled = $user_git_pr_enabled" "$temp_yaml"
+  [ -n "$user_git_pr_draft" ] && [ "$user_git_pr_draft" != "null" ] && yq -i ".git.pr.draft = $user_git_pr_draft" "$temp_yaml"
+  [ -n "$user_git_base_branch" ] && [ "$user_git_base_branch" != "null" ] && yq -i ".git.base-branch = \"$user_git_base_branch\"" "$temp_yaml"
+  [ -n "$user_git_auto_checkout" ] && [ "$user_git_auto_checkout" != "null" ] && yq -i ".git.auto-checkout-branch = $user_git_auto_checkout" "$temp_yaml"
   
   # Replace old with merged
   mv "$temp_yaml" "$old_yaml"
@@ -291,6 +311,14 @@ if [ -d "$RALPH_DIR/skills" ]; then
   cp -r "$RALPH_DIR/skills" "$TARGET_DIR/"
 fi
 
+# Copy scripts (discovery tools)
+if [ -d "$RALPH_DIR/scripts" ]; then
+  echo "→ Copying scripts/"
+  mkdir -p "$TARGET_DIR/scripts"
+  cp -r "$RALPH_DIR/scripts/"* "$TARGET_DIR/scripts/"
+  chmod +x "$TARGET_DIR/scripts/"*.sh 2>/dev/null || true
+fi
+
 # Create PRD from example
 if [ ! -f "$TARGET_DIR/prd.json" ]; then
   echo "→ Creating prd.json from example"
@@ -350,51 +378,60 @@ fi
 
 # Update .gitignore
 echo "→ Updating .gitignore"
-if [ -f "$TARGET_DIR/.gitignore" ]; then
-  if ! grep -q "^# Ralph" "$TARGET_DIR/.gitignore"; then
-    cat >> "$TARGET_DIR/.gitignore" << 'EOF'
+GITIGNORE="$TARGET_DIR/.gitignore"
+touch "$GITIGNORE"
 
-# Ralph
-.last-branch
-.ralph-version
-.ralph-backup/
-progress.txt
-ralph.log
-.ralph-models-cache.json
-archive/
-.ralph/repl/
-.ralph/context.json
-.DS_Store
-**/.DS_Store
-EOF
+ensure_gitignore_entry() {
+  local entry="$1"
+  if ! grep -qF "$entry" "$GITIGNORE" 2>/dev/null; then
+    echo "$entry" >> "$GITIGNORE"
   fi
-else
-  cat > "$TARGET_DIR/.gitignore" << 'EOF'
-# Ralph
-.last-branch
-.ralph-version
-.ralph-backup/
-progress.txt
-ralph.log
-.ralph-models-cache.json
-archive/
-.ralph/repl/
-.ralph/context.json
-.DS_Store
-**/.DS_Store
-EOF
+}
+
+# Add Ralph header if missing
+if ! grep -q "^# Ralph" "$GITIGNORE"; then
+  echo "" >> "$GITIGNORE"
+  echo "# Ralph" >> "$GITIGNORE"
 fi
+
+ensure_gitignore_entry ".last-branch"
+ensure_gitignore_entry ".ralph-version"
+ensure_gitignore_entry ".ralph-backup/"
+ensure_gitignore_entry "progress.txt"
+ensure_gitignore_entry "ralph.log"
+ensure_gitignore_entry ".ralph-models-cache.json"
+ensure_gitignore_entry "archive/"
+ensure_gitignore_entry ".ralph/repl/"
+ensure_gitignore_entry ".ralph/context.json"
+ensure_gitignore_entry "node_modules/"
+
+# Universal OS/editor entries
+if ! grep -q "^# OS" "$GITIGNORE"; then
+  echo "" >> "$GITIGNORE"
+  echo "# OS generated files" >> "$GITIGNORE"
+fi
+ensure_gitignore_entry ".DS_Store"
+ensure_gitignore_entry "**/.DS_Store"
+ensure_gitignore_entry "._*"
+ensure_gitignore_entry "Thumbs.db"
+ensure_gitignore_entry "desktop.ini"
+
+# Environment files (secrets)
+ensure_gitignore_entry ".env"
+
+# Editor swap files
+ensure_gitignore_entry "*.swp"
+ensure_gitignore_entry "*.swo"
 
 # ---- Add technology-specific gitignore entries ------------------
 
 # Node.js / JavaScript / TypeScript
 if [ -f "$TARGET_DIR/package.json" ]; then
   echo "→ Detected Node.js project, updating .gitignore"
-  if ! grep -q "^node_modules" "$TARGET_DIR/.gitignore" 2>/dev/null; then
+  if ! grep -q "^npm-debug.log" "$TARGET_DIR/.gitignore" 2>/dev/null; then
     cat >> "$TARGET_DIR/.gitignore" << 'EOF'
 
 # Node.js
-node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -702,6 +739,7 @@ if [ "$UPDATE_MODE" = true ]; then
   echo "  • system_instructions/"
   echo "  • lib/"
   echo "  • skills/"
+  echo "  • scripts/"
   if [ "$FORCE_MODE" = false ]; then
     echo ""
     echo -e "Preserved: ${YELLOW}agent.yaml${NC} (settings merged), prd.json, progress.txt, AGENTS.md"
@@ -752,6 +790,9 @@ else
   if [ -d "$RALPH_DIR/skills" ]; then
     echo "  • skills/ - Reusable skills library"
   fi
+  if [ -d "$RALPH_DIR/scripts" ]; then
+    echo "  • scripts/ - Discovery tools (generate-pin.sh)"
+  fi
 fi
 echo ""
 
@@ -762,9 +803,10 @@ if [ -d "$TARGET_DIR/.git" ]; then
   cd "$TARGET_DIR"
   if [ "$UPDATE_MODE" = true ]; then
     # Only commit if there are changes
-    if ! git diff --quiet HEAD -- ralph.sh create-prd.sh ralph-models.sh agent.yaml lib/ skills/ system_instructions/ 2>/dev/null; then
+    if ! git diff --quiet HEAD -- ralph.sh create-prd.sh ralph-models.sh agent.yaml lib/ skills/ scripts/ system_instructions/ .gitignore 2>/dev/null; then
       echo "Creating commit with Ralph update..."
-      git add ralph.sh create-prd.sh ralph-models.sh agent.yaml lib/ skills/ system_instructions/ .ralph-version 2>/dev/null || true
+      git add ralph.sh create-prd.sh ralph-models.sh agent.yaml lib/ skills/ system_instructions/ .ralph-version .gitignore 2>/dev/null || true
+      [ -d scripts ] && git add scripts/ 2>/dev/null || true
       git commit -m "Update Ralph to v${RALPH_VERSION}" 2>/dev/null || true
       echo -e "${GREEN}✓ Update committed${NC}"
     fi
