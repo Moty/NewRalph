@@ -20,6 +20,8 @@ Ralph is an autonomous AI agent loop that runs AI coding agents (Claude Code, Co
 ./ralph.sh --no-push                  # Disable auto-push (override config)
 ./ralph.sh --create-pr                # Enable PR creation (override config)
 ./ralph.sh --no-pr                    # Disable PR creation (override config)
+./ralph.sh --auto-merge               # Enable auto-merge of PR (override config)
+./ralph.sh --no-auto-merge            # Disable auto-merge (override config)
 ```
 
 ### Installing Ralph into a project
@@ -174,6 +176,7 @@ main (stable)
 3. **Agent** verifies it's on the feature branch and commits directly there
 4. **ralph.sh** verifies branch after iteration, pushes if enabled
 5. **ralph.sh** creates PR from feature branch → main when RALPH_COMPLETE
+6. **ralph.sh** merges PR into main if auto-merge enabled
 
 ### Git Configuration (agent.yaml)
 
@@ -187,6 +190,7 @@ git:
   pr:
     enabled: false              # Disabled by default
     draft: false                # Create as draft PR
+    auto-merge: false           # Merge PR into main after creation
 ```
 
 ### CLI Overrides
@@ -194,8 +198,9 @@ git:
 Override git settings for a single run:
 - `--push` / `--no-push` - Enable/disable auto-push
 - `--create-pr` / `--no-pr` - Enable/disable PR creation
+- `--auto-merge` / `--no-auto-merge` - Enable/disable PR auto-merge
 
-Example: `./ralph.sh --push --create-pr` enables both push and PR creation for this run.
+Example: `./ralph.sh --push --create-pr --auto-merge` enables full automation (push, PR, merge).
 
 ## Key Patterns
 
