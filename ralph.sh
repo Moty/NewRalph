@@ -1133,7 +1133,7 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
       # ---- Final Git Workflow ----
       if [ "$GIT_LIBRARY_LOADED" = true ] && [ -n "$BRANCH_NAME" ]; then
         echo ""
-        local push_succeeded=true
+        push_succeeded=true
 
         # Final push (if timing is "end" or we haven't pushed yet)
         if should_push; then
