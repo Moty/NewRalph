@@ -38,6 +38,12 @@ get_git_pr_draft() {
   [ "$value" = "true" ]
 }
 
+# Get git.pr.auto-merge setting (default: false)
+get_git_pr_auto_merge() {
+  local value=$(yq '.git.pr.auto-merge // false' "$AGENT_CONFIG" 2>/dev/null)
+  [ "$value" = "true" ]
+}
+
 # ---- Branch Management Functions ---------------------------------
 
 # Ensure the feature branch exists and we're on it
@@ -276,6 +282,38 @@ create_pr() {
     echo "$pr_url"
     return 1
   fi
+}
+
+# Merge a PR into its base branch
+# Usage: merge_pr <feature_branch>
+# Attempts direct merge first, falls back to enabling auto-merge (for repos with required checks)
+merge_pr() {
+  local feature_branch="$1"
+
+  log_info "Merging PR for branch: $feature_branch"
+
+  # Try direct merge first
+  local merge_output
+  merge_output=$(gh pr merge "$feature_branch" --merge --delete-branch 2>&1)
+  if [ $? -eq 0 ]; then
+    log_info "PR merged successfully"
+    echo -e "${GREEN}✓ Pull request merged into $(get_git_base_branch)${NC}"
+    return 0
+  fi
+
+  # Direct merge failed - try enabling auto-merge (waits for required checks)
+  log_info "Direct merge failed, attempting auto-merge: $merge_output"
+  merge_output=$(gh pr merge "$feature_branch" --auto --merge --delete-branch 2>&1)
+  if [ $? -eq 0 ]; then
+    log_info "Auto-merge enabled for PR"
+    echo -e "${GREEN}✓ Auto-merge enabled (will merge when checks pass)${NC}"
+    return 0
+  fi
+
+  log_error "Failed to merge PR: $merge_output"
+  echo -e "${RED}✗ Could not merge PR automatically${NC}"
+  echo -e "${YELLOW}  Merge manually: gh pr merge $feature_branch --merge${NC}"
+  return 1
 }
 
 # Generate PR body from prd.json and progress

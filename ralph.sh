@@ -1,6 +1,6 @@
 #!/bin/bash
 # Ralph Wiggum - Long-running AI agent loop (agent-agnostic)
-# Usage: ./ralph.sh [max_iterations] [--no-sleep-prevent] [--verbose] [--timeout SECONDS] [--no-timeout] [--greenfield] [--brownfield] [--update] [--check-update] [--push|--no-push] [--create-pr|--no-pr]
+# Usage: ./ralph.sh [max_iterations] [--no-sleep-prevent] [--verbose] [--timeout SECONDS] [--no-timeout] [--greenfield] [--brownfield] [--update] [--check-update] [--push|--no-push] [--create-pr|--no-pr] [--auto-merge|--no-auto-merge]
 # Agent priority: GitHub Copilot CLI → Claude Code → Gemini → Codex
 
 set -e
@@ -19,6 +19,7 @@ MAX_ITERATIONS=10
 # Git workflow CLI overrides (empty = use config file)
 GIT_PUSH_OVERRIDE=""
 GIT_PR_OVERRIDE=""
+GIT_AUTO_MERGE_OVERRIDE=""
 
 # Check for flags first (before processing positional args)
 POSITIONAL_ARGS=()
@@ -71,6 +72,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-pr)
       GIT_PR_OVERRIDE="false"
+      shift
+      ;;
+    --auto-merge)
+      GIT_AUTO_MERGE_OVERRIDE="true"
+      shift
+      ;;
+    --no-auto-merge)
+      GIT_AUTO_MERGE_OVERRIDE="false"
       shift
       ;;
     -*)
@@ -312,6 +321,24 @@ should_create_pr() {
   # Fall back to config file
   if [ "$GIT_LIBRARY_LOADED" = true ] && type get_git_pr_enabled >/dev/null 2>&1; then
     get_git_pr_enabled
+  else
+    return 1
+  fi
+}
+
+# Check if PR auto-merge is enabled (respects CLI override)
+# Usage: should_auto_merge_pr && merge_pr ...
+should_auto_merge_pr() {
+  # CLI override takes precedence
+  if [ "$GIT_AUTO_MERGE_OVERRIDE" = "true" ]; then
+    return 0
+  elif [ "$GIT_AUTO_MERGE_OVERRIDE" = "false" ]; then
+    return 1
+  fi
+
+  # Fall back to config file
+  if [ "$GIT_LIBRARY_LOADED" = true ] && type get_git_pr_auto_merge >/dev/null 2>&1; then
+    get_git_pr_auto_merge
   else
     return 1
   fi
@@ -988,6 +1015,9 @@ if [ -n "$BRANCH_NAME" ]; then
   fi
   if should_create_pr; then
     echo -e "Auto-PR: ${GREEN}enabled${NC}"
+    if should_auto_merge_pr; then
+      echo -e "Auto-merge: ${GREEN}enabled${NC}"
+    fi
   else
     echo -e "Auto-PR: ${YELLOW}disabled${NC}"
   fi
@@ -1117,7 +1147,13 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
           if [ "$push_succeeded" = true ]; then
             echo -e "${CYAN}Creating pull request...${NC}"
             BASE_BRANCH=$(get_git_base_branch 2>/dev/null || echo "main")
-            create_pr "$BRANCH_NAME" "$BASE_BRANCH"
+            if create_pr "$BRANCH_NAME" "$BASE_BRANCH"; then
+              # Auto-merge PR if enabled
+              if should_auto_merge_pr; then
+                echo -e "${CYAN}Merging pull request...${NC}"
+                merge_pr "$BRANCH_NAME"
+              fi
+            fi
           else
             echo -e "${YELLOW}Skipping PR creation due to push failure${NC}"
             echo -e "${YELLOW}Push manually: git push -u origin $BRANCH_NAME${NC}"

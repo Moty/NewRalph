@@ -178,6 +178,7 @@ merge_agent_yaml() {
   local user_git_push_timing=$(yq '.git.push.timing // ""' "$old_yaml" 2>/dev/null)
   local user_git_pr_enabled=$(yq '.git.pr.enabled // ""' "$old_yaml" 2>/dev/null)
   local user_git_pr_draft=$(yq '.git.pr.draft // ""' "$old_yaml" 2>/dev/null)
+  local user_git_pr_auto_merge=$(yq '.git.pr.auto-merge // ""' "$old_yaml" 2>/dev/null)
   local user_git_base_branch=$(yq '.git.base-branch // ""' "$old_yaml" 2>/dev/null)
   local user_git_auto_checkout=$(yq '.git.auto-checkout-branch // ""' "$old_yaml" 2>/dev/null)
 
@@ -201,6 +202,7 @@ merge_agent_yaml() {
   [ -n "$user_git_push_timing" ] && [ "$user_git_push_timing" != "null" ] && yq -i ".git.push.timing = \"$user_git_push_timing\"" "$temp_yaml"
   [ -n "$user_git_pr_enabled" ] && [ "$user_git_pr_enabled" != "null" ] && yq -i ".git.pr.enabled = $user_git_pr_enabled" "$temp_yaml"
   [ -n "$user_git_pr_draft" ] && [ "$user_git_pr_draft" != "null" ] && yq -i ".git.pr.draft = $user_git_pr_draft" "$temp_yaml"
+  [ -n "$user_git_pr_auto_merge" ] && [ "$user_git_pr_auto_merge" != "null" ] && yq -i ".git.pr.auto-merge = $user_git_pr_auto_merge" "$temp_yaml"
   [ -n "$user_git_base_branch" ] && [ "$user_git_base_branch" != "null" ] && yq -i ".git.base-branch = \"$user_git_base_branch\"" "$temp_yaml"
   [ -n "$user_git_auto_checkout" ] && [ "$user_git_auto_checkout" != "null" ] && yq -i ".git.auto-checkout-branch = $user_git_auto_checkout" "$temp_yaml"
   

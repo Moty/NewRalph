@@ -68,3 +68,5 @@ git:
     enabled: false
     # Create as draft PR
     draft: false
+    # Automatically merge the PR after creation (requires push and pr enabled)
+    auto-merge: false
