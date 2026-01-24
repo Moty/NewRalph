@@ -1,6 +1,6 @@
 #!/bin/bash
 # Ralph Wiggum - Long-running AI agent loop (agent-agnostic)
-# Usage: ./ralph.sh [max_iterations] [--no-sleep-prevent] [--verbose] [--timeout SECONDS] [--no-timeout] [--greenfield] [--brownfield] [--update] [--check-update] [--push|--no-push] [--create-pr|--no-pr] [--auto-merge|--no-auto-merge]
+# Usage: ./ralph.sh [max_iterations|status|review] [--no-sleep-prevent] [--verbose] [--timeout SECONDS] [--no-timeout] [--greenfield] [--brownfield] [--update] [--check-update] [--push|--no-push] [--create-pr|--no-pr] [--auto-merge|--no-auto-merge] [--rotation|--no-rotation] [--fixes]
 # Agent priority: GitHub Copilot CLI → Claude Code → Gemini → Codex
 
 set -e
@@ -20,6 +20,13 @@ MAX_ITERATIONS=10
 GIT_PUSH_OVERRIDE=""
 GIT_PR_OVERRIDE=""
 GIT_AUTO_MERGE_OVERRIDE=""
+
+# Rotation CLI overrides
+ROTATION_OVERRIDE=""
+# Command mode: build (default), review, status
+CURRENT_COMMAND="build"
+# Fixes mode: read from fixes.json instead of prd.json
+USE_FIXES=false
 
 # Check for flags first (before processing positional args)
 POSITIONAL_ARGS=()
@@ -82,6 +89,18 @@ while [[ $# -gt 0 ]]; do
       GIT_AUTO_MERGE_OVERRIDE="false"
       shift
       ;;
+    --rotation)
+      ROTATION_OVERRIDE="true"
+      shift
+      ;;
+    --no-rotation)
+      ROTATION_OVERRIDE="false"
+      shift
+      ;;
+    --fixes)
+      USE_FIXES=true
+      shift
+      ;;
     -*)
       echo "Unknown option: $1"
       exit 1
@@ -93,13 +112,29 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Set MAX_ITERATIONS from positional arg if provided
+# Check for subcommands (status, review) as first positional arg
 if [[ ${#POSITIONAL_ARGS[@]} -gt 0 ]]; then
-  MAX_ITERATIONS="${POSITIONAL_ARGS[0]}"
+  case "${POSITIONAL_ARGS[0]}" in
+    status)
+      CURRENT_COMMAND="status"
+      ;;
+    review)
+      CURRENT_COMMAND="review"
+      ;;
+    *)
+      MAX_ITERATIONS="${POSITIONAL_ARGS[0]}"
+      ;;
+  esac
 fi
 
 PRD_FILE="$SCRIPT_DIR/prd.json"
-PROGRESS_FILE="$SCRIPT_DIR/progress.txt"
+FIXES_FILE="$SCRIPT_DIR/fixes.json"
+if [ "$USE_FIXES" = true ]; then
+  PRD_FILE="$FIXES_FILE"
+  PROGRESS_FILE="$SCRIPT_DIR/fixes-progress.txt"
+else
+  PROGRESS_FILE="$SCRIPT_DIR/progress.txt"
+fi
 ARCHIVE_DIR="$SCRIPT_DIR/archive"
 LAST_BRANCH_FILE="$SCRIPT_DIR/.last-branch"
 AGENT_CONFIG="$SCRIPT_DIR/agent.yaml"
@@ -285,6 +320,14 @@ else
   GIT_LIBRARY_LOADED=false
 fi
 
+# Load rotation library if present
+if [ -f "$SCRIPT_DIR/lib/rotation.sh" ]; then
+  source "$SCRIPT_DIR/lib/rotation.sh"
+  ROTATION_LIBRARY_LOADED=true
+else
+  ROTATION_LIBRARY_LOADED=false
+fi
+
 # ---- Helper Functions ---------------------------------------------
 
 require_bin jq
@@ -339,6 +382,21 @@ should_auto_merge_pr() {
   # Fall back to config file
   if [ "$GIT_LIBRARY_LOADED" = true ] && type get_git_pr_auto_merge >/dev/null 2>&1; then
     get_git_pr_auto_merge
+  else
+    return 1
+  fi
+}
+
+# Check if rotation is enabled (respects CLI override)
+should_use_rotation() {
+  if [ "$ROTATION_OVERRIDE" = "true" ]; then
+    return 0
+  elif [ "$ROTATION_OVERRIDE" = "false" ]; then
+    return 1
+  fi
+  # Fall back to config file
+  if [ "$ROTATION_LIBRARY_LOADED" = true ] && type is_rotation_enabled >/dev/null 2>&1; then
+    is_rotation_enabled
   else
     return 1
   fi
@@ -471,6 +529,11 @@ print_status() {
   echo -e "${CYAN}├─────────────────────────────────────────────────────────┤${NC}"
   echo -e "${CYAN}│${NC}  📊 Stories: ${GREEN}$progress${NC} complete"
   echo -e "${CYAN}│${NC}  🎯 Current: ${YELLOW}$story${NC}"
+  if [ -n "$ACTIVE_AGENT" ]; then
+    local agent_display="$ACTIVE_AGENT"
+    [ -n "$RALPH_OVERRIDE_MODEL" ] && agent_display="$agent_display ($RALPH_OVERRIDE_MODEL)"
+    echo -e "${CYAN}│${NC}  🤖 Agent: ${CYAN}$agent_display${NC}"
+  fi
   echo -e "${CYAN}│${NC}  ⏱️  Elapsed: ${BLUE}$elapsed${NC}"
   echo -e "${CYAN}└─────────────────────────────────────────────────────────┘${NC}"
   echo ""
@@ -698,25 +761,47 @@ run_agent() {
 
   log_info "Starting agent: $AGENT (timeout: $TIMEOUT_DISPLAY)" 2>/dev/null || true
 
+  # Determine if dangerous permissions are allowed for this command
+  local USE_DANGEROUS_PERMS=true
+  if [ "$ROTATION_LIBRARY_LOADED" = true ] && type get_command_dangerous_permissions >/dev/null 2>&1; then
+    if ! get_command_dangerous_permissions "$CURRENT_COMMAND"; then
+      USE_DANGEROUS_PERMS=false
+    fi
+  fi
+
   case "$AGENT" in
     claude-code)
       local MODEL=$(get_claude_model)
+      # Override model if RALPH_OVERRIDE_MODEL is set
+      [ -n "$RALPH_OVERRIDE_MODEL" ] && MODEL="$RALPH_OVERRIDE_MODEL"
       echo -e "→ Running ${CYAN}Claude Code${NC} (model: $MODEL, timeout: $TIMEOUT_DISPLAY)"
       [ -z "$CLAUDE_CMD" ] && { echo -e "${RED}Error: Claude CLI not found${NC}"; return 1; }
 
+      # Build Claude flags
+      local CLAUDE_FLAGS=("--print" "--model" "$MODEL")
+      if [ "$USE_DANGEROUS_PERMS" = true ]; then
+        CLAUDE_FLAGS+=("--dangerously-skip-permissions")
+      fi
+
+      # Select system instructions based on command mode
+      local SYS_INSTRUCTIONS="$SCRIPT_DIR/system_instructions/system_instructions.md"
+      local CLAUDE_PROMPT="Read prd.json and implement the next incomplete story. Follow the system instructions exactly."
+      if [ "$CURRENT_COMMAND" = "review" ] && [ -f "$SCRIPT_DIR/system_instructions/system_instructions_review.md" ]; then
+        SYS_INSTRUCTIONS="$SCRIPT_DIR/system_instructions/system_instructions_review.md"
+        CLAUDE_PROMPT="Review the codebase and produce fix stories. Follow the review system instructions exactly."
+      fi
+      CLAUDE_FLAGS+=("--system-prompt" "$SYS_INSTRUCTIONS")
+
       # Run with timeout if run_with_timeout function exists and timeout > 0
       if type run_with_timeout >/dev/null 2>&1 && [ "$AGENT_TIMEOUT" -gt 0 ] 2>/dev/null; then
-        run_with_timeout "$AGENT_TIMEOUT" "$CLAUDE_CMD" --print --dangerously-skip-permissions --model "$MODEL" \
-          --system-prompt "$SCRIPT_DIR/system_instructions/system_instructions.md" \
-          "Read prd.json and implement the next incomplete story. Follow the system instructions exactly."
+        run_with_timeout "$AGENT_TIMEOUT" "$CLAUDE_CMD" "${CLAUDE_FLAGS[@]}" "$CLAUDE_PROMPT"
       else
-        "$CLAUDE_CMD" --print --dangerously-skip-permissions --model "$MODEL" \
-          --system-prompt "$SCRIPT_DIR/system_instructions/system_instructions.md" \
-          "Read prd.json and implement the next incomplete story. Follow the system instructions exactly."
+        "$CLAUDE_CMD" "${CLAUDE_FLAGS[@]}" "$CLAUDE_PROMPT"
       fi
       ;;
     codex)
       local MODEL=$(get_codex_model)
+      [ -n "$RALPH_OVERRIDE_MODEL" ] && MODEL="$RALPH_OVERRIDE_MODEL"
       local APPROVAL=$(get_codex_approval_mode)
       local SANDBOX=$(get_codex_sandbox)
       echo -e "→ Running ${CYAN}Codex${NC} (model: $MODEL, approval: $APPROVAL, sandbox: $SANDBOX, timeout: $TIMEOUT_DISPLAY)"
@@ -750,6 +835,7 @@ run_agent() {
     github-copilot)
       local TOOL_APPROVAL=$(get_copilot_tool_approval)
       local COPILOT_MODEL=$(get_copilot_model)
+      [ -n "$RALPH_OVERRIDE_MODEL" ] && COPILOT_MODEL="$RALPH_OVERRIDE_MODEL"
       local MODEL_DISPLAY="auto"
       [ "$COPILOT_MODEL" != "auto" ] && MODEL_DISPLAY="$COPILOT_MODEL"
       echo -e "→ Running ${CYAN}GitHub Copilot${NC} (model: $MODEL_DISPLAY, tool-approval: $TOOL_APPROVAL, timeout: $TIMEOUT_DISPLAY)"
@@ -763,8 +849,8 @@ run_agent() {
         COPILOT_FLAGS+=("--model" "$COPILOT_MODEL")
       fi
       
-      # Add tool approval flags
-      if [ "$TOOL_APPROVAL" = "allow-all" ]; then
+      # Add tool approval flags (respect per-command permissions)
+      if [ "$TOOL_APPROVAL" = "allow-all" ] && [ "$USE_DANGEROUS_PERMS" = true ]; then
         COPILOT_FLAGS+=("--allow-all-tools")
         # Add deny-tools if specified
         local DENY_TOOLS="$(get_copilot_deny_tools)"
@@ -787,6 +873,7 @@ run_agent() {
       ;;
     gemini)
       local MODEL=$(get_gemini_model)
+      [ -n "$RALPH_OVERRIDE_MODEL" ] && MODEL="$RALPH_OVERRIDE_MODEL"
       echo -e "→ Running ${CYAN}Gemini${NC} (model: $MODEL, timeout: $TIMEOUT_DISPLAY)"
       command -v gemini >/dev/null 2>&1 || { echo -e "${RED}Error: Gemini CLI not found${NC}"; echo -e "${YELLOW}Install: npm install -g @anthropic/gemini-cli or pip install google-generativeai${NC}"; return 1; }
 
@@ -979,6 +1066,168 @@ if [ "$GIT_LIBRARY_LOADED" = true ] && [ -n "$BRANCH_NAME" ]; then
   fi
 fi
 
+# ---- Handle Subcommands (status, review) --------------------------
+
+if [ "$CURRENT_COMMAND" = "status" ]; then
+  # Status subcommand: display project info, story progress, rotation state
+  echo ""
+  echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "${CYAN}  Ralph Status${NC}"
+  echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+  if [ -f "$PRD_FILE" ]; then
+    local_project=$(jq -r '.project // "Unknown"' "$PRD_FILE" 2>/dev/null)
+    local_branch=$(jq -r '.branchName // "N/A"' "$PRD_FILE" 2>/dev/null)
+    echo -e "Project: ${YELLOW}$local_project${NC}"
+    echo -e "Branch: ${CYAN}$local_branch${NC}"
+  else
+    echo -e "${YELLOW}No prd.json found${NC}"
+  fi
+
+  # Show current agent/model
+  if should_use_rotation && [ "$ROTATION_LIBRARY_LOADED" = true ]; then
+    local_selection=$(select_agent_and_model "" "$CURRENT_COMMAND" 2>/dev/null)
+    local_agent=$(echo "$local_selection" | cut -d'|' -f1)
+    local_model=$(echo "$local_selection" | cut -d'|' -f2)
+    echo -e "Agent: ${CYAN}$local_agent${NC} (model: ${CYAN}${local_model:-default}${NC})"
+  else
+    local_agent=$(get_agent 2>/dev/null || echo "unknown")
+    echo -e "Agent: ${CYAN}$local_agent${NC}"
+  fi
+
+  echo ""
+
+  # Story progress
+  if [ -f "$PRD_FILE" ]; then
+    local_total=$(jq '.userStories | length' "$PRD_FILE" 2>/dev/null || echo "0")
+    local_complete=$(jq '[.userStories[] | select(.passes == true)] | length' "$PRD_FILE" 2>/dev/null || echo "0")
+    local_pct=0
+    [ "$local_total" -gt 0 ] && local_pct=$(( (local_complete * 100) / local_total ))
+    echo -e "Stories: ${GREEN}$local_complete${NC}/${YELLOW}$local_total${NC} complete (${local_pct}%)"
+
+    # List each story with status
+    jq -r '.userStories[] | "\(.passes)|\(.id)|\(.title)|\(.blockedBy // [] | join(","))"' "$PRD_FILE" 2>/dev/null | while IFS='|' read -r passes sid stitle blocked; do
+      if [ "$passes" = "true" ]; then
+        echo -e "  ${GREEN}✓${NC} $sid: $stitle"
+      elif [ -n "$blocked" ]; then
+        echo -e "  ${RED}○${NC} $sid: $stitle ${YELLOW}(blocked by $blocked)${NC}"
+      else
+        echo -e "  ${BLUE}○${NC} $sid: $stitle ${GREEN}(ready)${NC}"
+      fi
+    done
+  fi
+
+  echo ""
+
+  # Rotation status
+  if [ "$ROTATION_LIBRARY_LOADED" = true ] && should_use_rotation; then
+    print_rotation_status
+  else
+    echo -e "Rotation: ${YELLOW}disabled${NC}"
+  fi
+
+  # Last iteration time (check log file modification time)
+  if [ -f "$LOG_FILE" ]; then
+    local_log_mtime=$(stat -f "%m" "$LOG_FILE" 2>/dev/null || stat -c "%Y" "$LOG_FILE" 2>/dev/null || echo "0")
+    local_now=$(date +%s)
+    local_ago=$((local_now - local_log_mtime))
+    if [ "$local_ago" -gt 0 ] && [ "$local_ago" -lt 86400 ]; then
+      echo -e "Last activity: ${BLUE}$(format_duration $local_ago)${NC} ago"
+    fi
+  fi
+
+  echo ""
+  exit 0
+fi
+
+# ---- Review Subcommand --------------------------------------------
+
+if [ "$CURRENT_COMMAND" = "review" ]; then
+  echo ""
+  echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "${CYAN}  Ralph Review${NC}"
+  echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+  # Select agent for review (uses commands.review config)
+  export RALPH_OVERRIDE_MODEL=""
+  if should_use_rotation && [ "$ROTATION_LIBRARY_LOADED" = true ]; then
+    SELECTION=$(select_agent_and_model "" "review")
+    REVIEW_AGENT=$(echo "$SELECTION" | cut -d'|' -f1)
+    RALPH_OVERRIDE_MODEL=$(echo "$SELECTION" | cut -d'|' -f2)
+  else
+    REVIEW_AGENT=$(get_agent 2>/dev/null || echo "claude-code")
+  fi
+
+  # Verify agent is available
+  if ! check_agent_available "$REVIEW_AGENT"; then
+    echo -e "${RED}Review agent $REVIEW_AGENT not available${NC}"
+    exit 1
+  fi
+
+  echo -e "Review agent: ${CYAN}$REVIEW_AGENT${NC} (model: ${CYAN}${RALPH_OVERRIDE_MODEL:-default}${NC})"
+  echo ""
+
+  # Run the review agent
+  set +e
+  REVIEW_OUTPUT=$(run_agent "$REVIEW_AGENT" 2>&1 | tee /dev/stderr)
+  REVIEW_STATUS=$?
+  set -e
+
+  if [ $REVIEW_STATUS -ne 0 ]; then
+    echo -e "${RED}Review agent failed with exit code $REVIEW_STATUS${NC}"
+    exit 1
+  fi
+
+  # Parse fixes from output (between RALPH_FIXES_START and RALPH_FIXES_END markers)
+  FIXES_JSON=$(echo "$REVIEW_OUTPUT" | sed -n '/RALPH_FIXES_START/,/RALPH_FIXES_END/p' | sed '1d;$d')
+
+  if [ -z "$FIXES_JSON" ]; then
+    echo -e "${YELLOW}No fix stories found in review output${NC}"
+    echo -e "${YELLOW}The review agent did not produce structured fixes.${NC}"
+    exit 0
+  fi
+
+  # Validate the extracted JSON
+  if ! echo "$FIXES_JSON" | jq empty 2>/dev/null; then
+    echo -e "${RED}Error: Review output contains invalid JSON${NC}"
+    echo "$FIXES_JSON" | head -5
+    exit 1
+  fi
+
+  # Get fix count
+  FIX_COUNT=$(echo "$FIXES_JSON" | jq '.fixes | length' 2>/dev/null || echo "0")
+
+  if [ "$FIX_COUNT" -eq 0 ]; then
+    echo -e "${GREEN}No issues found! Codebase looks good.${NC}"
+    exit 0
+  fi
+
+  # Build fixes.json with project metadata
+  FIXES_PROJECT=$(jq -r '.project // "Unknown"' "$SCRIPT_DIR/prd.json" 2>/dev/null || echo "Unknown")
+  FIXES_BRANCH=$(jq -r '.branchName // "unknown"' "$SCRIPT_DIR/prd.json" 2>/dev/null || echo "unknown")
+
+  echo "$FIXES_JSON" | jq --arg project "$FIXES_PROJECT" --arg branch "$FIXES_BRANCH" '
+    {
+      project: $project,
+      branchName: $branch,
+      userStories: [.fixes[] | . + {passes: false, blockedBy: []}]
+    }
+  ' > "$FIXES_FILE"
+
+  echo ""
+  echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "${GREEN}  Review complete: $FIX_COUNT fix(es) found${NC}"
+  echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "Fixes saved to: ${BLUE}$FIXES_FILE${NC}"
+  echo -e "Run fixes with: ${YELLOW}./ralph.sh --fixes${NC}"
+  echo ""
+
+  # List the fixes
+  jq -r '.userStories[] | "  \(.priority). [\(.id)] \(.title)"' "$FIXES_FILE" 2>/dev/null
+
+  exit 0
+fi
+
 # ---- Main loop ----------------------------------------------------
 
 PRIMARY_AGENT=$(get_agent)
@@ -1002,6 +1251,11 @@ else
   echo -e "Agent timeout: ${YELLOW}no timeout${NC}"
 fi
 [ "$VERBOSE" = true ] && echo -e "Verbose mode: ${GREEN}enabled${NC}"
+if should_use_rotation; then
+  echo -e "Rotation: ${GREEN}enabled${NC} (threshold: $(get_failure_threshold 2>/dev/null || echo 2), cooldown: $(get_rate_limit_cooldown 2>/dev/null || echo 300)s)"
+else
+  echo -e "Rotation: ${YELLOW}disabled${NC}"
+fi
 echo -e "Log file: ${BLUE}$LOG_FILE${NC}"
 echo -e "Started at: ${BLUE}$(date '+%Y-%m-%d %H:%M:%S')${NC}"
 # Show git workflow status
@@ -1024,6 +1278,11 @@ if [ -n "$BRANCH_NAME" ]; then
 fi
 
 start_sleep_prevention
+
+# Initialize rotation state if rotation is enabled
+if should_use_rotation && [ "$ROTATION_LIBRARY_LOADED" = true ]; then
+  init_rotation_state
+fi
 
 # Clean up stale branches from previous runs (merged sub-branches)
 if [ "$GIT_LIBRARY_LOADED" = true ] && [ -n "$BRANCH_NAME" ]; then
@@ -1062,34 +1321,99 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
   CURRENT_TASK_DESC=$(echo "$TASK_DETAILS" | cut -d'|' -f2)
   CURRENT_AC_COUNT=$(echo "$TASK_DETAILS" | cut -d'|' -f3)
 
+  # Select agent and model (rotation-aware or static)
+  ACTIVE_AGENT="$PRIMARY_AGENT"
+  export RALPH_OVERRIDE_MODEL=""
+  if should_use_rotation && [ "$ROTATION_LIBRARY_LOADED" = true ]; then
+    SELECTION=$(select_agent_and_model "$CURRENT_TASK_ID" "$CURRENT_COMMAND")
+    ACTIVE_AGENT=$(echo "$SELECTION" | cut -d'|' -f1)
+    RALPH_OVERRIDE_MODEL=$(echo "$SELECTION" | cut -d'|' -f2)
+    # Verify selected agent is available
+    if ! check_agent_available "$ACTIVE_AGENT"; then
+      log_warn "Selected agent $ACTIVE_AGENT not available, rotating" 2>/dev/null || true
+      rotate_agent 2>/dev/null || true
+      SELECTION=$(select_agent_and_model "$CURRENT_TASK_ID" "$CURRENT_COMMAND")
+      ACTIVE_AGENT=$(echo "$SELECTION" | cut -d'|' -f1)
+      RALPH_OVERRIDE_MODEL=$(echo "$SELECTION" | cut -d'|' -f2)
+    fi
+  fi
+
   print_status $i $MAX_ITERATIONS
 
   set +e
   # Use REPL-aware runner if we have task details
   if [ -n "$CURRENT_TASK_ID" ] && [ "$REPL_LIBRARY_LOADED" = true ]; then
-    OUTPUT=$(run_agent_with_repl "$PRIMARY_AGENT" "$CURRENT_TASK_ID" "$CURRENT_TASK_DESC" "$CURRENT_AC_COUNT" 2>&1 | tee /dev/stderr)
+    OUTPUT=$(run_agent_with_repl "$ACTIVE_AGENT" "$CURRENT_TASK_ID" "$CURRENT_TASK_DESC" "$CURRENT_AC_COUNT" 2>&1 | tee /dev/stderr)
   else
-    OUTPUT=$(run_agent "$PRIMARY_AGENT" 2>&1 | tee /dev/stderr)
+    OUTPUT=$(run_agent "$ACTIVE_AGENT" 2>&1 | tee /dev/stderr)
   fi
   STATUS=$?
   set -e
 
-  if check_rate_limit "$OUTPUT"; then
-    print_iteration_summary $i 0 "rate_limited"
-    echo -e "\n${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${RED}  ⚠ Rate limit hit - Ralph stopping${NC}"
-    echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
-    echo -e "Resume later with: ${YELLOW}./ralph.sh $((MAX_ITERATIONS - i + 1))${NC}"
-    exit 1
+  # Parse usage metrics from output
+  if [ "$ROTATION_LIBRARY_LOADED" = true ] && should_use_rotation; then
+    parse_usage_from_output "$ACTIVE_AGENT" "$OUTPUT" 2>/dev/null || true
   fi
 
-  if [ $STATUS -ne 0 ] && [ -n "$FALLBACK_AGENT" ]; then
-    echo -e "${YELLOW}Primary agent failed — trying $FALLBACK_AGENT${NC}"
-    set +e
-    OUTPUT=$(run_agent "$FALLBACK_AGENT" 2>&1 | tee /dev/stderr)
-    STATUS=$?
-    set -e
-    check_rate_limit "$OUTPUT" && { echo -e "${RED}⚠ Rate limit on fallback${NC}"; exit 1; }
+  # Handle rate limits
+  RATE_LIMITED=false
+  if check_rate_limit "$OUTPUT" || { [ "$ROTATION_LIBRARY_LOADED" = true ] && check_rate_limit_extended "$ACTIVE_AGENT" "$OUTPUT"; }; then
+    RATE_LIMITED=true
+    if should_use_rotation && [ "$ROTATION_LIBRARY_LOADED" = true ]; then
+      # Rotation enabled: record rate limit, rotate, and continue
+      record_rate_limit "$ACTIVE_AGENT"
+      update_rotation_state "$CURRENT_TASK_ID" "$ACTIVE_AGENT" "$RALPH_OVERRIDE_MODEL" "rate_limit"
+      echo -e "${YELLOW}⚠ Rate limit hit on $ACTIVE_AGENT — rotating to next agent${NC}"
+      rotate_agent 2>/dev/null
+      ROTATE_RESULT=$?
+      if [ $ROTATE_RESULT -eq 2 ]; then
+        # All agents exhausted
+        echo -e "${RED}All agents exhausted after rate limits. Waiting for cooldown...${NC}"
+        local_cooldown=$(get_rate_limit_cooldown)
+        echo -e "Sleeping ${YELLOW}${local_cooldown}s${NC} for cooldown..."
+        sleep "$local_cooldown"
+      fi
+      # Continue to next iteration instead of exiting
+      sleep 2
+      continue
+    else
+      # No rotation: exit as before
+      print_iteration_summary $i 0 "rate_limited"
+      echo -e "\n${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+      echo -e "${RED}  ⚠ Rate limit hit - Ralph stopping${NC}"
+      echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
+      echo -e "Resume later with: ${YELLOW}./ralph.sh $((MAX_ITERATIONS - i + 1))${NC}"
+      exit 1
+    fi
+  fi
+
+  # Handle failures
+  if [ $STATUS -ne 0 ]; then
+    if should_use_rotation && [ "$ROTATION_LIBRARY_LOADED" = true ]; then
+      # Rotation enabled: track failure, possibly rotate
+      update_rotation_state "$CURRENT_TASK_ID" "$ACTIVE_AGENT" "$RALPH_OVERRIDE_MODEL" "failure"
+      if should_rotate "$CURRENT_TASK_ID" "$ACTIVE_AGENT" "$RALPH_OVERRIDE_MODEL"; then
+        echo -e "${YELLOW}Failure threshold reached for $ACTIVE_AGENT ($RALPH_OVERRIDE_MODEL) — rotating${NC}"
+        rotate_model "$ACTIVE_AGENT" 2>/dev/null || true
+      fi
+      # Continue to next iteration (retry with rotated model/agent)
+      sleep 2
+      continue
+    elif [ -n "$FALLBACK_AGENT" ]; then
+      # Legacy fallback behavior
+      echo -e "${YELLOW}Primary agent failed — trying $FALLBACK_AGENT${NC}"
+      set +e
+      OUTPUT=$(run_agent "$FALLBACK_AGENT" 2>&1 | tee /dev/stderr)
+      STATUS=$?
+      set -e
+      check_rate_limit "$OUTPUT" && { echo -e "${RED}⚠ Rate limit on fallback${NC}"; exit 1; }
+    fi
+  else
+    # Success: update rotation state
+    if should_use_rotation && [ "$ROTATION_LIBRARY_LOADED" = true ] && [ -n "$CURRENT_TASK_ID" ]; then
+      update_rotation_state "$CURRENT_TASK_ID" "$ACTIVE_AGENT" "$RALPH_OVERRIDE_MODEL" "success"
+      reset_story_state "$CURRENT_TASK_ID" 2>/dev/null || true
+    fi
   fi
 
   ITERATION_END=$(date +%s)

@@ -1,9 +1,12 @@
 # Ralph working files (generated during runs)
 prd.json
 progress.txt
+fixes.json
+fixes-progress.txt
 .last-branch
 ralph.log
 .ralph-models-cache.json
+.ralph/
 
 # Archive is optional to commit
 # archive/

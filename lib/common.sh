@@ -282,6 +282,69 @@ validate_agent_yaml() {
     esac
   fi
 
+  # Validate rotation config if present
+  local rotation_enabled=$(yq eval '.rotation.enabled // ""' "$agent_file" 2>/dev/null)
+  if [ -n "$rotation_enabled" ] && [ "$rotation_enabled" != "null" ]; then
+    case "$rotation_enabled" in
+      true|false) ;;
+      *)
+        log_error "rotation.enabled must be true or false, got: $rotation_enabled"
+        echo -e "${RED}Error: rotation.enabled must be true or false${NC}"
+        return 1
+        ;;
+    esac
+
+    local strategy=$(yq eval '.rotation.strategy // ""' "$agent_file" 2>/dev/null)
+    if [ -n "$strategy" ] && [ "$strategy" != "null" ]; then
+      case "$strategy" in
+        sequential|priority) ;;
+        *)
+          log_warn "Unknown rotation strategy: $strategy (expected: sequential, priority)"
+          echo -e "${YELLOW}Warning: Unknown rotation strategy: $strategy${NC}"
+          ;;
+      esac
+    fi
+  fi
+
+  # Validate agent-rotation list entries if present
+  local rotation_agents=$(yq eval '.agent-rotation[]? // empty' "$agent_file" 2>/dev/null)
+  if [ -n "$rotation_agents" ]; then
+    while IFS= read -r rot_agent; do
+      [ -z "$rot_agent" ] && continue
+      case "$rot_agent" in
+        claude-code|codex|github-copilot|gemini) ;;
+        *)
+          log_error "Unknown agent in agent-rotation: $rot_agent"
+          echo -e "${RED}Error: Unknown agent in agent-rotation: $rot_agent${NC}"
+          return 1
+          ;;
+      esac
+    done <<< "$rotation_agents"
+  fi
+
+  # Validate per-agent models arrays if present
+  for agent_name in claude-code codex github-copilot gemini; do
+    local models_count=$(yq eval ".[\"$agent_name\"].models | length // 0" "$agent_file" 2>/dev/null)
+    if [ "$models_count" != "0" ] && [ "$models_count" != "null" ]; then
+      log_debug "$agent_name has $models_count models configured"
+    fi
+  done
+
+  # Validate commands section if present
+  local commands_list=$(yq eval '.commands | keys[]? // empty' "$agent_file" 2>/dev/null)
+  if [ -n "$commands_list" ]; then
+    while IFS= read -r cmd_name; do
+      [ -z "$cmd_name" ] && continue
+      case "$cmd_name" in
+        build|review|prd) ;;
+        *)
+          log_warn "Unknown command in commands section: $cmd_name"
+          echo -e "${YELLOW}Warning: Unknown command in commands section: $cmd_name${NC}"
+          ;;
+      esac
+    done <<< "$commands_list"
+  fi
+
   log_info "Agent configuration validation successful"
   echo -e "${GREEN}✓ Agent configuration valid${NC} (primary: $primary_agent)"
   return 0
