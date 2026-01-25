@@ -1361,11 +1361,14 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
     RATE_LIMITED=true
     if should_use_rotation && [ "$ROTATION_LIBRARY_LOADED" = true ]; then
       # Rotation enabled: record rate limit, rotate, and continue
-      record_rate_limit "$ACTIVE_AGENT"
-      update_rotation_state "$CURRENT_TASK_ID" "$ACTIVE_AGENT" "$RALPH_OVERRIDE_MODEL" "rate_limit"
+      # Note: || true prevents set -e from exiting on rotation function failures
+      record_rate_limit "$ACTIVE_AGENT" 2>/dev/null || true
+      update_rotation_state "$CURRENT_TASK_ID" "$ACTIVE_AGENT" "$RALPH_OVERRIDE_MODEL" "rate_limit" 2>/dev/null || true
       echo -e "${YELLOW}⚠ Rate limit hit on $ACTIVE_AGENT — rotating to next agent${NC}"
+      set +e
       rotate_agent 2>/dev/null
       ROTATE_RESULT=$?
+      set -e
       if [ $ROTATE_RESULT -eq 2 ]; then
         # All agents exhausted
         echo -e "${RED}All agents exhausted after rate limits. Waiting for cooldown...${NC}"
@@ -1391,8 +1394,9 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
   if [ $STATUS -ne 0 ]; then
     if should_use_rotation && [ "$ROTATION_LIBRARY_LOADED" = true ]; then
       # Rotation enabled: track failure, possibly rotate
-      update_rotation_state "$CURRENT_TASK_ID" "$ACTIVE_AGENT" "$RALPH_OVERRIDE_MODEL" "failure"
-      if should_rotate "$CURRENT_TASK_ID" "$ACTIVE_AGENT" "$RALPH_OVERRIDE_MODEL"; then
+      # Note: || true prevents set -e from exiting on rotation function failures
+      update_rotation_state "$CURRENT_TASK_ID" "$ACTIVE_AGENT" "$RALPH_OVERRIDE_MODEL" "failure" 2>/dev/null || true
+      if should_rotate "$CURRENT_TASK_ID" "$ACTIVE_AGENT" "$RALPH_OVERRIDE_MODEL" 2>/dev/null; then
         echo -e "${YELLOW}Failure threshold reached for $ACTIVE_AGENT ($RALPH_OVERRIDE_MODEL) — rotating${NC}"
         rotate_model "$ACTIVE_AGENT" 2>/dev/null || true
       fi
@@ -1411,7 +1415,7 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
   else
     # Success: update rotation state
     if should_use_rotation && [ "$ROTATION_LIBRARY_LOADED" = true ] && [ -n "$CURRENT_TASK_ID" ]; then
-      update_rotation_state "$CURRENT_TASK_ID" "$ACTIVE_AGENT" "$RALPH_OVERRIDE_MODEL" "success"
+      update_rotation_state "$CURRENT_TASK_ID" "$ACTIVE_AGENT" "$RALPH_OVERRIDE_MODEL" "success" 2>/dev/null || true
       reset_story_state "$CURRENT_TASK_ID" 2>/dev/null || true
     fi
   fi
