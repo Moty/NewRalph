@@ -300,12 +300,28 @@ Displays project info, story progress (with blocked/ready indicators), current a
 ### fixes.json Format
 Same structure as `prd.json` (with `userStories` array containing fix items). Each fix has `source: "review"` to indicate its origin.
 
+## Versioning
+
+**IMPORTANT:** After making any code changes to Ralph, bump the version in `setup-ralph.sh`:
+
+```bash
+RALPH_VERSION="X.Y.Z"
+RALPH_VERSION_DATE="YYYY-MM-DD"
+```
+
+- **Major (X):** Breaking changes or major new features
+- **Minor (Y):** New features, significant fixes
+- **Patch (Z):** Bug fixes, minor improvements
+
+This ensures `./ralph.sh --update` correctly detects and applies updates to installed projects.
+
 ## Key Patterns
 
 - Each iteration = fresh agent instance with clean context
 - Memory persists only via: git commits, `progress.txt`, `prd.json`
 - Always update `AGENTS.md` files with discovered patterns
 - Update `README.md` when implementing new features
+- **Bump version in `setup-ralph.sh` after every code change**
 - Frontend stories must include browser verification in acceptance criteria
 - Quality checks (typecheck, lint, test) must pass before committing
 - Stop condition: `RALPH_COMPLETE` output when all stories have `passes: true`
