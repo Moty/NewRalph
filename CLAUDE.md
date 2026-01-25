@@ -183,9 +183,15 @@ main (stable)
 1. **setup-ralph.sh** creates the feature branch `ralph/feature-name` and pushes to GitHub
 2. **ralph.sh** ensures the feature branch is checked out before each iteration
 3. **Agent** verifies it's on the feature branch and commits directly there
-4. **ralph.sh** verifies branch after iteration, pushes if enabled
+4. **ralph.sh** verifies branch after iteration, auto-commits if needed, pushes if enabled
 5. **ralph.sh** creates PR from feature branch → main when RALPH_COMPLETE
 6. **ralph.sh** merges PR into main if auto-merge enabled
+
+### Auto-Commit Behavior
+After each iteration, Ralph detects uncommitted changes and handles them:
+- **If story progress was made but agent forgot to commit**: Ralph auto-commits with message `feat: US-XXX - auto-commit by Ralph (agent forgot to commit)`
+- **If uncommitted src/prd changes exist without progress**: Ralph warns but doesn't commit (might be incomplete multi-iteration work)
+- **If agent switched branches**: Ralph auto-commits before restoring to the feature branch
 
 ### Git Configuration (agent.yaml)
 
@@ -244,6 +250,7 @@ claude-code:
 - On **rate limit**: records cooldown timestamp, immediately rotates to next agent, waits for cooldown before retrying
 - On **success**: resets failure counter for that story
 - State persists in `.ralph/rotation-state.json`
+- **State resets on new PRD**: When starting a new PRD (branch name changes), rotation state is deleted to ensure the new run starts fresh with the primary agent
 
 ### CLI Overrides
 - `--rotation` / `--no-rotation` - Override config for a single run
