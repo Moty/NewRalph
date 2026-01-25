@@ -17,8 +17,8 @@ UPDATE_MODE=false
 FORCE_MODE=false
 
 # Ralph version - update this when making releases
-RALPH_VERSION="1.1.0"
-RALPH_VERSION_DATE="2026-01-17"
+RALPH_VERSION="1.2.0"
+RALPH_VERSION_DATE="2026-01-25"
 
 # Show usage if help requested
 show_help() {
