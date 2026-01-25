@@ -1300,8 +1300,11 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
   # Ensure we're on the feature branch and pull latest before each iteration
   if [ "$GIT_LIBRARY_LOADED" = true ] && [ -n "$BRANCH_NAME" ]; then
     if get_git_auto_checkout_branch 2>/dev/null; then
-      git checkout "$BRANCH_NAME" 2>/dev/null || true
-      git pull origin "$BRANCH_NAME" 2>/dev/null || true
+      GIT_TERMINAL_PROMPT=0 git checkout "$BRANCH_NAME" 2>/dev/null || true
+      # Only pull if we're behind origin, not ahead; use GIT_TERMINAL_PROMPT=0 to prevent hanging on auth
+      if git rev-list --count HEAD..origin/"$BRANCH_NAME" 2>/dev/null | grep -q '^[1-9]'; then
+        GIT_TERMINAL_PROMPT=0 git pull --no-edit origin "$BRANCH_NAME" 2>/dev/null || true
+      fi
     fi
   fi
 
