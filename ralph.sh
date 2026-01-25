@@ -982,6 +982,11 @@ if [ -f "$PRD_FILE" ] && [ -f "$LAST_BRANCH_FILE" ]; then
     echo "# Ralph Progress Log" > "$PROGRESS_FILE"
     echo "Started: $(date)" >> "$PROGRESS_FILE"
     echo "---" >> "$PROGRESS_FILE"
+    # Reset rotation state for new PRD - start fresh with primary agent
+    if [ -f "$SCRIPT_DIR/.ralph/rotation-state.json" ]; then
+      echo -e "${CYAN}Resetting rotation state for new PRD${NC}"
+      rm -f "$SCRIPT_DIR/.ralph/rotation-state.json"
+    fi
   fi
 fi
 
@@ -1338,6 +1343,9 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
     fi
   fi
 
+  # Track story progress before agent runs (for auto-commit detection)
+  STORIES_BEFORE=$(jq '[.userStories[] | select(.passes == true)] | length' "$PRD_FILE" 2>/dev/null || echo "0")
+
   print_status $i $MAX_ITERATIONS
 
   set +e
@@ -1435,6 +1443,27 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
         git commit -m "chore: auto-commit uncommitted agent work before branch restore" 2>/dev/null || true
       fi
       git checkout "$BRANCH_NAME" 2>/dev/null || true
+    fi
+
+    # Auto-commit uncommitted changes if agent made progress but forgot to commit
+    # Check if story progress was made (comparing before/after)
+    STORIES_AFTER=$(jq '[.userStories[] | select(.passes == true)] | length' "$PRD_FILE" 2>/dev/null || echo "0")
+    if ! git diff-index --quiet HEAD -- 2>/dev/null; then
+      # There are uncommitted changes
+      UNCOMMITTED_SRC=$(git diff --name-only HEAD 2>/dev/null | grep -c '^src/' || echo "0")
+      UNCOMMITTED_PRD=$(git diff --name-only HEAD 2>/dev/null | grep -c 'prd.json' || echo "0")
+
+      if [ "$STORIES_AFTER" -gt "$STORIES_BEFORE" ]; then
+        # Story progress was made but changes weren't committed - auto-commit
+        echo -e "${YELLOW}⚠ Agent made progress but didn't commit - auto-committing${NC}"
+        COMPLETED_STORY=$(jq -r ".userStories[] | select(.passes == true) | .id" "$PRD_FILE" 2>/dev/null | tail -1)
+        git add -A
+        git commit -m "feat: ${COMPLETED_STORY:-story} - auto-commit by Ralph (agent forgot to commit)" 2>/dev/null || true
+      elif [ "$UNCOMMITTED_SRC" -gt 0 ] || [ "$UNCOMMITTED_PRD" -gt 0 ]; then
+        # Source or PRD changes exist - warn but don't auto-commit (might be incomplete work)
+        echo -e "${YELLOW}⚠ Uncommitted changes detected (${UNCOMMITTED_SRC} src files, prd: ${UNCOMMITTED_PRD})${NC}"
+        log_warn "Uncommitted changes after iteration: $UNCOMMITTED_SRC src files" 2>/dev/null || true
+      fi
     fi
 
     # Push if enabled and timing is "iteration"
