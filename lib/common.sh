@@ -307,7 +307,7 @@ validate_agent_yaml() {
   fi
 
   # Validate agent-rotation list entries if present
-  local rotation_agents=$(yq eval '.agent-rotation[]? // empty' "$agent_file" 2>/dev/null)
+  local rotation_agents=$(yq eval '.agent-rotation[]?' "$agent_file" 2>/dev/null)
   if [ -n "$rotation_agents" ]; then
     while IFS= read -r rot_agent; do
       [ -z "$rot_agent" ] && continue
@@ -331,12 +331,12 @@ validate_agent_yaml() {
   done
 
   # Validate commands section if present
-  local commands_list=$(yq eval '.commands | keys[]? // empty' "$agent_file" 2>/dev/null)
+  local commands_list=$(yq eval '.commands | keys[]?' "$agent_file" 2>/dev/null)
   if [ -n "$commands_list" ]; then
     while IFS= read -r cmd_name; do
       [ -z "$cmd_name" ] && continue
       case "$cmd_name" in
-        build|review|prd) ;;
+        build|review|prd|filebug|change) ;;
         *)
           log_warn "Unknown command in commands section: $cmd_name"
           echo -e "${YELLOW}Warning: Unknown command in commands section: $cmd_name${NC}"
@@ -409,26 +409,27 @@ run_with_timeout() {
 
   log_debug "Running command with timeout ${timeout}s: ${command[*]}"
 
-  # Run command in background
-  "${command[@]}" &
-  local pid=$!
+  # Check for native timeout command (GNU coreutils)
+  # Note: macOS timeout (if present) may not support --foreground
+  if command -v gtimeout >/dev/null 2>&1; then
+    # GNU timeout from Homebrew (preferred on macOS)
+    gtimeout --foreground "$timeout" "${command[@]}"
+    return $?
+  fi
 
-  # Wait for command with timeout
-  local count=0
-  while kill -0 $pid 2>/dev/null; do
-    if [ $count -ge "$timeout" ]; then
-      log_error "Command timed out after ${timeout}s, killing process $pid"
-      kill -TERM $pid 2>/dev/null || true
-      sleep 2
-      kill -KILL $pid 2>/dev/null || true
-      return 124  # Standard timeout exit code
+  if command -v timeout >/dev/null 2>&1; then
+    # Check if this timeout supports --foreground (GNU coreutils)
+    if timeout --foreground 1 true 2>/dev/null; then
+      timeout --foreground "$timeout" "${command[@]}"
+      return $?
     fi
-    sleep 1
-    count=$((count + 1))
-  done
+  fi
 
-  # Get exit status
-  wait $pid
+  # macOS/BSD fallback: run directly without timeout wrapper
+  # The timeout feature is nice-to-have but output streaming is critical
+  # Users can install coreutils (brew install coreutils) for timeout support
+  log_debug "No GNU timeout available, running without timeout (install coreutils for timeout support)"
+  "${command[@]}"
   return $?
 }
 

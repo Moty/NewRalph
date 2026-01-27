@@ -27,6 +27,9 @@ Ralph is an autonomous AI agent loop that runs AI coding agents (Claude Code, Co
 ./ralph.sh --fixes                    # Build from fixes.json instead of prd.json
 ./ralph.sh status                     # Show project status, story progress, rotation state
 ./ralph.sh review                     # Run code review, produce fixes.json
+./ralph.sh filebug "bug description"  # File a bug as a fix story in fixes.json
+./ralph.sh filebug --file src/foo.ts "bug description"  # File bug with file reference
+./ralph.sh change "change description"  # Apply mid-build change to prd.json
 ```
 
 ### Installing Ralph into a project
@@ -76,7 +79,7 @@ View the interactive flowchart at: https://snarktank.github.io/ralph/
 - `git.sh` - Git workflow operations (branch management, push, PR creation)
 - `rotation.sh` - Intelligent model/agent rotation, rate limit handling, usage tracking
 
-**Bash compatibility**: All lib scripts must work with bash 3.2 (macOS default). Avoid associative arrays. Use `jq`'s `// empty` operator when accessing optional JSON fields.
+**Bash compatibility**: All lib scripts must work with bash 3.2 (macOS default). Avoid associative arrays. Use `jq`'s `// empty` operator when accessing optional JSON fields. **Important**: `yq` (mikefarah/yq v4) does NOT support `// empty` - use `[]?` for optional array iteration or `// ""` for string defaults instead.
 
 ### Skills (`skills/`)
 - `prd/SKILL.md` - General PRD generation with clarifying questions
@@ -270,6 +273,12 @@ commands:
   prd:
     agent-rotation: [github-copilot, claude-code]
     dangerous-permissions: true
+  filebug:
+    agent-rotation: [claude-code, github-copilot]
+    dangerous-permissions: false
+  change:
+    agent-rotation: [claude-code, github-copilot]
+    dangerous-permissions: true
 ```
 
 - `dangerous-permissions`: controls `--dangerously-skip-permissions` (Claude) and `--allow-all-tools` (Copilot)
@@ -299,6 +308,39 @@ Displays project info, story progress (with blocked/ready indicators), current a
 
 ### fixes.json Format
 Same structure as `prd.json` (with `userStories` array containing fix items). Each fix has `source: "review"` to indicate its origin.
+
+## Filebug Command
+
+```bash
+./ralph.sh filebug "The login button doesn't redirect after auth"
+./ralph.sh filebug --file src/auth.ts "Login redirect broken"
+```
+
+Quick path from "I found a bug" to a fix story in `fixes.json`:
+1. Spawns agent with filebug-specific system instructions
+2. Agent analyzes the bug description (and optional file reference)
+3. Produces a single fix story between `RALPH_FIX_START`/`RALPH_FIX_END` markers
+4. Fix story is **appended** to `fixes.json` (does not overwrite existing fixes)
+5. Run `./ralph.sh --fixes` to build the fixes
+
+Fix stories have `source: "filebug"` and priority 1-3 (security/crash, wrong behavior, cosmetic).
+
+## Change Command
+
+```bash
+./ralph.sh change "Add pagination to the user list endpoint"
+./ralph.sh change "Remove the export feature, we don't need it anymore"
+./ralph.sh change "Update US-003 to also handle edge case where user has no email"
+```
+
+Safely apply mid-build changes to `prd.json`:
+1. Backs up `prd.json` to `.ralph-backup/YYYYMMDD-HHMMSS/`
+2. Spawns agent with change-specific system instructions
+3. Agent modifies `prd.json` directly (add/modify/remove/rework stories)
+4. Post-validates the result; restores from backup if invalid
+5. Adds a `changeRequests` entry to `prd.json` for auditability
+
+Safety rules: completed stories (`passes: true`) are never modified, stories are never deleted (only marked `status: "removed"`), `branchName` and `project` fields are immutable.
 
 ## Versioning
 

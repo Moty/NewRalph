@@ -17,8 +17,8 @@ UPDATE_MODE=false
 FORCE_MODE=false
 
 # Ralph version - update this when making releases
-RALPH_VERSION="1.2.1"
-RALPH_VERSION_DATE="2026-01-25"
+RALPH_VERSION="1.3.0"
+RALPH_VERSION_DATE="2026-01-26"
 
 # Show usage if help requested
 show_help() {
@@ -299,6 +299,9 @@ mkdir -p "$TARGET_DIR/system_instructions"
 cp "$RALPH_DIR/system_instructions/system_instructions.md" "$TARGET_DIR/system_instructions/"
 cp "$RALPH_DIR/system_instructions/system_instructions_codex.md" "$TARGET_DIR/system_instructions/"
 cp "$RALPH_DIR/system_instructions/system_instructions_copilot.md" "$TARGET_DIR/system_instructions/"
+[ -f "$RALPH_DIR/system_instructions/system_instructions_review.md" ] && cp "$RALPH_DIR/system_instructions/system_instructions_review.md" "$TARGET_DIR/system_instructions/"
+[ -f "$RALPH_DIR/system_instructions/system_instructions_filebug.md" ] && cp "$RALPH_DIR/system_instructions/system_instructions_filebug.md" "$TARGET_DIR/system_instructions/"
+[ -f "$RALPH_DIR/system_instructions/system_instructions_change.md" ] && cp "$RALPH_DIR/system_instructions/system_instructions_change.md" "$TARGET_DIR/system_instructions/"
 
 # Copy lib directory with common functions
 if [ -d "$RALPH_DIR/lib" ]; then

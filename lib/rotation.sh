@@ -30,10 +30,10 @@ get_rotation_strategy() {
 
 get_agent_models() {
   local agent="$1"
-  local models=$(yq ".[\"$agent\"].models[]? // empty" "$AGENT_CONFIG" 2>/dev/null)
+  local models=$(yq ".[\"$agent\"].models[]?" "$AGENT_CONFIG" 2>/dev/null)
   if [ -z "$models" ]; then
     # Fallback to single model field
-    local single_model=$(yq ".[\"$agent\"].model // empty" "$AGENT_CONFIG" 2>/dev/null)
+    local single_model=$(yq ".[\"$agent\"].model // \"\"" "$AGENT_CONFIG" 2>/dev/null)
     if [ -n "$single_model" ] && [ "$single_model" != "null" ]; then
       echo "$single_model"
     fi
@@ -43,11 +43,11 @@ get_agent_models() {
 }
 
 get_agent_rotation_list() {
-  local list=$(yq '.agent-rotation[]? // empty' "$AGENT_CONFIG" 2>/dev/null)
+  local list=$(yq '.agent-rotation[]?' "$AGENT_CONFIG" 2>/dev/null)
   if [ -z "$list" ]; then
     # Fallback: primary then fallback
-    local primary=$(yq '.agent.primary // empty' "$AGENT_CONFIG" 2>/dev/null)
-    local fallback=$(yq '.agent.fallback // empty' "$AGENT_CONFIG" 2>/dev/null)
+    local primary=$(yq '.agent.primary // ""' "$AGENT_CONFIG" 2>/dev/null)
+    local fallback=$(yq '.agent.fallback // ""' "$AGENT_CONFIG" 2>/dev/null)
     [ -n "$primary" ] && [ "$primary" != "null" ] && echo "$primary"
     [ -n "$fallback" ] && [ "$fallback" != "null" ] && echo "$fallback"
   else
@@ -57,7 +57,7 @@ get_agent_rotation_list() {
 
 get_command_agent_rotation() {
   local cmd="$1"
-  local list=$(yq ".commands.[\"$cmd\"].agent-rotation[]? // empty" "$AGENT_CONFIG" 2>/dev/null)
+  local list=$(yq ".commands.[\"$cmd\"].agent-rotation[]?" "$AGENT_CONFIG" 2>/dev/null)
   if [ -n "$list" ]; then
     echo "$list"
   else
@@ -153,34 +153,59 @@ select_agent_and_model() {
     return
   fi
 
-  # Get current agent index
+  local strategy=$(get_rotation_strategy)
   local agent_idx=$(get_current_agent_index)
   if [ "$agent_idx" -ge "$agent_count" ]; then
     agent_idx=0
-    set_current_agent_index 0
   fi
 
-  # Get current agent name (nth line from agents_arr)
-  local current_agent=$(echo "$agents_arr" | sed -n "$((agent_idx + 1))p")
+  local current_agent=""
+  local selected_idx="$agent_idx"
 
-  # Skip agents in cooldown
-  local attempts=0
-  while [ $attempts -lt $agent_count ]; do
-    if is_agent_cooled_down "$current_agent"; then
-      break
+  if [ "$strategy" = "priority" ]; then
+    # Priority: pick the first available agent in the rotation list
+    local idx=0
+    while IFS= read -r candidate; do
+      [ -z "$candidate" ] && continue
+      if is_agent_cooled_down "$candidate"; then
+        current_agent="$candidate"
+        selected_idx="$idx"
+        break
+      fi
+      log_debug "Agent $candidate in cooldown, skipping" 2>/dev/null || true
+      idx=$((idx + 1))
+    done <<< "$rotation_list"
+  else
+    # Sequential: start from current index and skip agents in cooldown
+    current_agent=$(echo "$agents_arr" | sed -n "$((agent_idx + 1))p")
+    local attempts=0
+    while [ $attempts -lt $agent_count ]; do
+      if is_agent_cooled_down "$current_agent"; then
+        selected_idx="$agent_idx"
+        break
+      fi
+      log_debug "Agent $current_agent in cooldown, skipping" 2>/dev/null || true
+      agent_idx=$(( (agent_idx + 1) % agent_count ))
+      current_agent=$(echo "$agents_arr" | sed -n "$((agent_idx + 1))p")
+      attempts=$((attempts + 1))
+    done
+
+    if [ $attempts -ge $agent_count ]; then
+      # All agents in cooldown, use the current index anyway
+      agent_idx=$(get_current_agent_index)
+      current_agent=$(echo "$agents_arr" | sed -n "$((agent_idx + 1))p")
+      selected_idx="$agent_idx"
+      log_warn "All agents in cooldown, using $current_agent anyway" 2>/dev/null || true
     fi
-    log_debug "Agent $current_agent in cooldown, skipping" 2>/dev/null || true
-    agent_idx=$(( (agent_idx + 1) % agent_count ))
-    current_agent=$(echo "$agents_arr" | sed -n "$((agent_idx + 1))p")
-    attempts=$((attempts + 1))
-  done
-
-  if [ $attempts -ge $agent_count ]; then
-    # All agents in cooldown, use the one with earliest cooldown expiry
-    agent_idx=$(get_current_agent_index)
-    current_agent=$(echo "$agents_arr" | sed -n "$((agent_idx + 1))p")
-    log_warn "All agents in cooldown, using $current_agent anyway" 2>/dev/null || true
   fi
+
+  if [ -z "$current_agent" ]; then
+    current_agent=$(echo "$agents_arr" | sed -n "$((agent_idx + 1))p")
+    selected_idx="$agent_idx"
+    log_warn "No available agent found, using $current_agent" 2>/dev/null || true
+  fi
+
+  set_current_agent_index "$selected_idx"
 
   # Get current model for this agent
   local model_idx=$(get_current_model_index "$current_agent")
@@ -211,6 +236,7 @@ select_agent_and_model() {
 
 rotate_model() {
   local agent="$1"
+  local command="$2"
 
   local models_list
   models_list=$(get_agent_models "$agent")
@@ -222,7 +248,7 @@ rotate_model() {
 
   if [ "$model_count" -le 1 ]; then
     # No more models to rotate to, rotate agent instead
-    rotate_agent
+    rotate_agent "$command"
     return $?
   fi
 
@@ -232,7 +258,7 @@ rotate_model() {
   if [ "$next_idx" -eq 0 ]; then
     # Wrapped around all models, rotate to next agent
     log_info "All models exhausted for $agent, rotating agent" 2>/dev/null || true
-    rotate_agent
+    rotate_agent "$command"
     return $?
   fi
 
@@ -248,8 +274,13 @@ rotate_model() {
 }
 
 rotate_agent() {
+  local command="$1"
   local rotation_list
-  rotation_list=$(get_agent_rotation_list)
+  if [ -n "$command" ]; then
+    rotation_list=$(get_command_agent_rotation "$command")
+  else
+    rotation_list=$(get_agent_rotation_list)
+  fi
   local agent_count=0
   while IFS= read -r a; do
     [ -z "$a" ] && continue
