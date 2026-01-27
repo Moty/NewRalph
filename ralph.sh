@@ -32,10 +32,68 @@ FILEBUG_DESCRIPTION=""
 FILEBUG_FILE=""
 CHANGE_DESCRIPTION=""
 
+# ---- Help --------------------------------------------------------
+
+show_help() {
+  cat <<'HELPEOF'
+Ralph - Autonomous AI Agent Loop
+
+Usage: ./ralph.sh [max_iterations] [options]
+       ./ralph.sh <subcommand> [args] [options]
+
+Subcommands:
+  status                         Show project status, story progress, rotation state
+  review                         Run code review, produce fixes.json
+  filebug "description"          File a bug as a fix story in fixes.json
+  filebug --file FILE "desc"     File a bug with a specific file reference
+  change "description"           Apply a mid-build change to prd.json
+
+Core Options:
+  -h, --help                     Show this help message
+  -v, --verbose                  Enable debug logging
+  --timeout SECONDS              Set timeout per iteration (default: 7200)
+  --no-timeout                   Disable iteration timeout
+  --no-sleep-prevent             Disable caffeinate/systemd-inhibit
+  --fixes                        Build from fixes.json instead of prd.json
+  --greenfield                   Force greenfield project type
+  --brownfield                   Force brownfield project type
+
+Git Options:
+  --push                         Enable auto-push after each iteration
+  --no-push                      Disable auto-push
+  --create-pr                    Enable PR creation when all stories complete
+  --no-pr                        Disable PR creation
+  --auto-merge                   Enable auto-merge of PR into base branch
+  --no-auto-merge                Disable auto-merge
+
+Rotation Options:
+  --rotation                     Enable model/agent rotation
+  --no-rotation                  Disable rotation
+
+Update Options:
+  --check-update                 Check if Ralph updates are available
+  --update                       Self-update from source repository
+
+Examples:
+  ./ralph.sh                     Run with defaults (10 iterations)
+  ./ralph.sh 20 --verbose        Run 20 iterations with debug logging
+  ./ralph.sh --push --create-pr  Enable push and PR for this run
+  ./ralph.sh --fixes             Build from fixes.json
+  ./ralph.sh review              Run code review
+  ./ralph.sh filebug "Login button broken after auth redirect"
+  ./ralph.sh change "Add pagination to user list endpoint"
+  ./ralph.sh status              Show current project status
+HELPEOF
+  exit 0
+}
+
 # Check for flags first (before processing positional args)
 POSITIONAL_ARGS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    -h|--help)
+      show_help
+      ;;
     --no-sleep-prevent)
       PREVENT_SLEEP=false
       shift

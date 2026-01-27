@@ -2,7 +2,7 @@
 
 ![Ralph](ralph.webp)
 
-Ralph is an autonomous AI agent loop that runs AI coding agents (Claude Code or Codex) repeatedly until all PRD items are complete. Each iteration is a fresh agent instance with clean context. Memory persists via git history, `progress.txt`, and `prd.json`.
+Ralph is an autonomous AI agent loop that runs AI coding agents (Claude Code, Codex, GitHub Copilot, or Gemini) repeatedly until all PRD items are complete. Each iteration is a fresh agent instance with clean context. Memory persists via git history, `progress.txt`, and `prd.json`.
 
 Based on [Geoffrey Huntley's Ralph pattern](https://ghuntley.com/ralph/).
 
@@ -64,7 +64,7 @@ cd ralph
 Both methods will:
 - ✓ Check for required dependencies (jq, yq, claude/codex)
 - ✓ Copy all necessary files to your project
-- ✓ Configure your preferred agent (Claude Code or Codex)
+- ✓ Configure your preferred agent (Claude Code, Codex, GitHub Copilot, or Gemini)
 - ✓ Detect and cache available models automatically
 - ✓ Create template files (prd.json, progress.txt, AGENTS.md)
 - ✓ Update .gitignore appropriately
@@ -409,16 +409,26 @@ cp prd.json.example prd.json
 
 ```bash
 ./ralph.sh [max_iterations] [options]
+./ralph.sh <subcommand> [args] [options]
 ```
 
-Default is 10 iterations.
+Default is 10 iterations. Run `./ralph.sh --help` for full usage details.
+
+**Subcommands:**
+- `status` - Show project status, story progress, and rotation state
+- `review` - Run code review, produce `fixes.json`
+- `filebug "description"` - File a bug as a fix story in `fixes.json`
+- `change "description"` - Apply a mid-build change to `prd.json`
 
 **Core Options:**
 - `max_iterations` - Maximum number of iterations (default: 10)
-- `--verbose` - Enable debug logging
+- `-h, --help` - Show help message with all options
+- `-v, --verbose` - Enable debug logging
 - `--no-sleep-prevent` - Disable automatic sleep prevention
 - `--timeout SECONDS` - Set timeout per iteration (default: 7200s/2 hours)
 - `--no-timeout` - Disable iteration timeout
+- `--fixes` - Build from `fixes.json` instead of `prd.json`
+- `--file FILE` - Specify a file reference (used with `filebug`)
 - `--check-update` - Check if Ralph updates are available
 - `--update` - Self-update from source repository
 
@@ -427,12 +437,23 @@ Default is 10 iterations.
 - `--no-push` - Disable automatic push (overrides config)
 - `--create-pr` - Enable PR creation when all stories complete (overrides config)
 - `--no-pr` - Disable PR creation (overrides config)
+- `--auto-merge` - Enable auto-merge of PR into base branch (overrides config)
+- `--no-auto-merge` - Disable auto-merge (overrides config)
+
+**Rotation Options:**
+- `--rotation` - Enable model/agent rotation (overrides config)
+- `--no-rotation` - Disable rotation (overrides config)
 
 **Examples:**
 ```bash
 ./ralph.sh 20 --verbose              # Run 20 iterations with debug logging
 ./ralph.sh --push --create-pr        # Enable push and PR for this run
 ./ralph.sh --timeout 3600            # Set 1-hour timeout per iteration
+./ralph.sh --fixes                   # Build from fixes.json
+./ralph.sh review                    # Run code review
+./ralph.sh filebug "Login broken"    # File a bug
+./ralph.sh change "Add pagination"   # Apply mid-build change
+./ralph.sh status                    # Show project status
 ```
 
 **Features:**
@@ -562,6 +583,93 @@ CLI flags override the `agent.yaml` configuration for a single run.
 
 Git workflow features are **disabled by default** to maintain backward compatibility with existing Ralph installations. Projects that don't need automated push/PR can run Ralph exactly as before.
 
+## Model/Agent Rotation
+
+Ralph supports intelligent rotation between agents and models on failures or rate limits. When one agent fails repeatedly or hits a rate limit, Ralph automatically switches to the next available agent or model.
+
+### Configuration
+
+Enable rotation in `agent.yaml`:
+
+```yaml
+rotation:
+  enabled: true
+  failure-threshold: 2        # consecutive failures before rotating
+  rate-limit-cooldown: 300    # seconds before retrying rate-limited agent
+  strategy: sequential        # "sequential" or "priority"
+
+agent-rotation:              # ordered list of agents to rotate through
+  - github-copilot
+  - claude-code
+  - gemini
+  - codex
+
+# Per-agent model lists (rotates through on failure)
+claude-code:
+  model: claude-sonnet-4-20250514
+  models:
+    - claude-sonnet-4-20250514
+    - claude-opus-4-20250514
+    - claude-3-5-haiku-20241022
+```
+
+### Rotation Behavior
+
+- **On failure**: Increments failure counter. After `failure-threshold` consecutive failures with the same agent/model, rotates to the next model (then the next agent if all models are exhausted).
+- **On rate limit**: Records cooldown timestamp, immediately rotates to next agent, waits for cooldown before retrying.
+- **On success**: Resets failure counter for that story.
+- **On new PRD**: Rotation state is deleted when starting a new PRD (branch name changes), so the new run starts fresh with the primary agent.
+
+State persists in `.ralph/rotation-state.json`.
+
+### CLI Overrides
+
+```bash
+./ralph.sh --rotation      # Enable rotation for this run
+./ralph.sh --no-rotation   # Disable rotation for this run
+```
+
+## Review Command
+
+Run a code review on changes made since branching from main:
+
+```bash
+./ralph.sh review
+```
+
+The review agent examines changed files, identifies high-impact issues, and produces structured fix stories saved to `fixes.json`. Then build the fixes:
+
+```bash
+./ralph.sh --fixes         # Run the standard build loop using fixes.json
+```
+
+Fix stories in `fixes.json` use the same format as `prd.json` and have `source: "review"` to indicate their origin.
+
+## Filebug Command
+
+Quick path from "I found a bug" to a fix story:
+
+```bash
+./ralph.sh filebug "The login button doesn't redirect after auth"
+./ralph.sh filebug --file src/auth.ts "Login redirect broken"
+```
+
+The agent analyzes the bug description (and optional file reference), produces a fix story, and appends it to `fixes.json`. Fix stories have `source: "filebug"` and priority 1-3 (security/crash, wrong behavior, cosmetic). Then run `./ralph.sh --fixes` to build the fixes.
+
+## Change Command
+
+Safely apply mid-build changes to `prd.json`:
+
+```bash
+./ralph.sh change "Add pagination to the user list endpoint"
+./ralph.sh change "Remove the export feature, we don't need it anymore"
+./ralph.sh change "Update US-003 to also handle edge case where user has no email"
+```
+
+The change agent modifies `prd.json` directly — adding, modifying, removing, or reworking stories. A backup is created in `.ralph-backup/` before any changes. If the result is invalid JSON, it restores from backup automatically.
+
+**Safety rules:** Completed stories (`passes: true`) are never modified, stories are never deleted (only marked `status: "removed"`), and `branchName`/`project` fields are immutable. Changes are tracked via `changeRequests` entries in `prd.json`.
+
 ## Files Installed by Setup
 
 When you run `setup-ralph.sh`, these files are added to your project:
@@ -577,16 +685,23 @@ your-project/
 ├─ progress.txt                 # Iteration log (auto-generated)
 ├─ AGENTS.md                    # Pattern documentation
 ├─ .last-branch                 # Branch tracking (auto-generated)
+├─ .ralph/                      # Runtime state (auto-generated)
+│  └─ rotation-state.json       # Rotation state tracking
 ├─ lib/                         # Core library functions
 │  ├─ common.sh                 # Logging, validation, utilities
 │  ├─ git.sh                    # Git workflow operations
 │  ├─ context.sh                # Task state management
+│  ├─ context-builder.sh        # Builds context for agent prompts
 │  ├─ compaction.sh             # Memory compaction
+│  ├─ rotation.sh               # Model/agent rotation
 │  └─ model-refresh.sh          # Model detection
 ├─ system_instructions/         # Agent prompts
-│  ├─ system_instructions.md
-│  ├─ system_instructions_codex.md
-│  └─ system_instructions_copilot.md
+│  ├─ system_instructions.md           # Claude Code
+│  ├─ system_instructions_codex.md     # Codex
+│  ├─ system_instructions_copilot.md   # GitHub Copilot CLI
+│  ├─ system_instructions_review.md    # Review agent
+│  ├─ system_instructions_filebug.md   # Filebug agent
+│  └─ system_instructions_change.md    # Change agent
 ├─ skills/                      # Optional skills library
 │  ├─ prd/
 │  └─ ralph/
@@ -604,20 +719,26 @@ your-project/
 | `ralph.sh` | The bash loop that spawns fresh agent instances |
 | `create-prd.sh` | Automated two-step PRD generation and conversion script |
 | `ralph-models.sh` | Model listing and cache management utility |
-| `agent.yaml` | Configuration for primary/fallback agent selection and git workflow |
+| `agent.yaml` | Configuration for primary/fallback agent selection, rotation, and git workflow |
 | `lib/common.sh` | Core utilities: logging, validation, dependency checking |
 | `lib/git.sh` | Git workflow: branch management, merge, push, PR creation |
 | `lib/context.sh` | Task state management with dependency awareness |
+| `lib/context-builder.sh` | Builds context for agent prompts |
 | `lib/compaction.sh` | Memory compaction for long-running sessions |
+| `lib/rotation.sh` | Intelligent model/agent rotation and rate limit handling |
 | `lib/model-refresh.sh` | Model detection and caching |
 | `system_instructions/` | Agent-specific instruction files |
 | `system_instructions/system_instructions.md` | Instructions for Claude Code |
 | `system_instructions/system_instructions_codex.md` | Instructions for Codex |
 | `system_instructions/system_instructions_copilot.md` | Instructions for GitHub Copilot CLI |
+| `system_instructions/system_instructions_review.md` | Instructions for review agent |
+| `system_instructions/system_instructions_filebug.md` | Instructions for filebug agent |
+| `system_instructions/system_instructions_change.md` | Instructions for change agent |
 | `prd.json` | User stories with `passes` status (the task list) |
+| `fixes.json` | Fix stories from review/filebug commands |
 | `prd.json.example` | Example PRD format for reference |
 | `progress.txt` | Append-only learnings for future iterations |
-| `prompt.md` | Legacy prompt file (optional) |
+| `.ralph/rotation-state.json` | Rotation state, rate limit cooldowns, usage metrics |
 | `skills/prd/SKILL.md` | General-purpose PRD skill |
 | `skills/prd/GREENFIELD.md` | PRD skill for new projects (architecture, tech selection) |
 | `skills/prd/BROWNFIELD.md` | PRD skill for existing codebases (integration, patterns) |
@@ -635,7 +756,7 @@ your-project/
 
 ### Each Iteration = Fresh Context
 
-Each iteration spawns a **new agent instance** (Claude Code or Codex) with clean context. The only memory between iterations is:
+Each iteration spawns a **new agent instance** (Claude Code, Codex, GitHub Copilot, or Gemini) with clean context. The only memory between iterations is:
 - Git history (commits from previous iterations)
 - `progress.txt` (learnings and context)
 - `prd.json` (which stories are done)
@@ -746,6 +867,9 @@ Edit the files in `system_instructions/` to customize agent behavior for your pr
 - `system_instructions.md` - Instructions for Claude Code
 - `system_instructions_codex.md` - Instructions for Codex
 - `system_instructions_copilot.md` - Instructions for GitHub Copilot CLI
+- `system_instructions_review.md` - Instructions for the review agent
+- `system_instructions_filebug.md` - Instructions for the filebug agent
+- `system_instructions_change.md` - Instructions for the change agent
 
 You can add:
 - Project-specific quality check commands
