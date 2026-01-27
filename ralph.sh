@@ -5,6 +5,9 @@
 
 set -e
 
+# ---- Version ------------------------------------------------------
+RALPH_VERSION="1.4.0"
+
 # ---- Configuration ------------------------------------------------
 
 PREVENT_SLEEP=true
@@ -35,8 +38,8 @@ CHANGE_DESCRIPTION=""
 # ---- Help --------------------------------------------------------
 
 show_help() {
-  cat <<'HELPEOF'
-Ralph - Autonomous AI Agent Loop
+  cat <<HELPEOF
+Ralph - Autonomous AI Agent Loop (v${RALPH_VERSION})
 
 Usage: ./ralph.sh [max_iterations] [options]
        ./ralph.sh <subcommand> [args] [options]
@@ -50,6 +53,7 @@ Subcommands:
 
 Core Options:
   -h, --help                     Show this help message
+  -V, --version                  Show Ralph version
   -v, --verbose                  Enable debug logging
   --timeout SECONDS              Set timeout per iteration (default: 7200)
   --no-timeout                   Disable iteration timeout
@@ -93,6 +97,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help)
       show_help
+      ;;
+    -V|--version)
+      echo "Ralph v${RALPH_VERSION}"
+      exit 0
       ;;
     --no-sleep-prevent)
       PREVENT_SLEEP=false
@@ -225,7 +233,8 @@ get_local_version() {
   if [ -f "$VERSION_FILE" ]; then
     grep '^version=' "$VERSION_FILE" 2>/dev/null | sed 's/version=//' || head -n 1 "$VERSION_FILE"
   else
-    echo "unknown"
+    # Fall back to embedded version constant
+    echo "$RALPH_VERSION"
   fi
 }
 
