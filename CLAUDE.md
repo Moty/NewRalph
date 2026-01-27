@@ -154,7 +154,7 @@ agent:
   fallback: codex
 
 claude-code:
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-4-5-20250929
 
 codex:
   model: gpt-5.2-codex
@@ -241,10 +241,11 @@ agent-rotation:              # ordered list of agents to rotate through
 
 # Per-agent model lists (rotates through on failure)
 claude-code:
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-4-5-20250929
   models:
+    - claude-sonnet-4-5-20250929
+    - claude-opus-4-5-20251101
     - claude-sonnet-4-20250514
-    - claude-opus-4-20250514
     - claude-3-5-haiku-20241022
 ```
 

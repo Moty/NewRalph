@@ -850,7 +850,7 @@ get_agent() {
 }
 
 get_fallback_agent() { yq '.agent.fallback // ""' "$AGENT_CONFIG"; }
-get_claude_model() { yq '.claude-code.model // "claude-sonnet-4-20250514"' "$AGENT_CONFIG"; }
+get_claude_model() { yq '.claude-code.model // "claude-sonnet-4-5-20250929"' "$AGENT_CONFIG"; }
 get_codex_model() { yq '.codex.model // "gpt-4o"' "$AGENT_CONFIG"; }
 get_codex_approval_mode() { yq '.codex.approval-mode // "full-auto"' "$AGENT_CONFIG"; }
 get_codex_sandbox() { yq '.codex.sandbox // "full-access"' "$AGENT_CONFIG"; }
@@ -897,7 +897,12 @@ run_agent() {
 
       # Select system instructions based on command mode
       local SYS_INSTRUCTIONS="$SCRIPT_DIR/system_instructions/system_instructions.md"
-      local CLAUDE_PROMPT="Read prd.json and implement the next incomplete story. Follow the system instructions exactly."
+      local BACKLOG_NAME=$(basename "$PRD_FILE")
+      local FIXES_NOTE=""
+      if [ "$USE_FIXES" = true ]; then
+        FIXES_NOTE=" IMPORTANT: You are in fixes mode. Use fixes.json instead of prd.json for all reads and writes."
+      fi
+      local CLAUDE_PROMPT="Read ${BACKLOG_NAME} and implement the next incomplete story. Follow the system instructions exactly.${FIXES_NOTE}"
       if [ "$CURRENT_COMMAND" = "review" ] && [ -f "$SCRIPT_DIR/system_instructions/system_instructions_review.md" ]; then
         SYS_INSTRUCTIONS="$SCRIPT_DIR/system_instructions/system_instructions_review.md"
         CLAUDE_PROMPT="Review the codebase and produce fix stories. Follow the review system instructions exactly."
@@ -906,7 +911,7 @@ run_agent() {
         CLAUDE_PROMPT="Analyze this bug report and produce a fix story. Bug: ${FILEBUG_DESCRIPTION}. ${FILEBUG_FILE:+Related file: $FILEBUG_FILE. }Follow the filebug system instructions exactly."
       elif [ "$CURRENT_COMMAND" = "change" ] && [ -f "$SCRIPT_DIR/system_instructions/system_instructions_change.md" ]; then
         SYS_INSTRUCTIONS="$SCRIPT_DIR/system_instructions/system_instructions_change.md"
-        CLAUDE_PROMPT="Apply this change request to prd.json: ${CHANGE_DESCRIPTION}. Follow the change system instructions exactly."
+        CLAUDE_PROMPT="Apply this change request to ${BACKLOG_NAME}: ${CHANGE_DESCRIPTION}. Follow the change system instructions exactly.${FIXES_NOTE}"
       fi
       CLAUDE_FLAGS+=("--system-prompt" "$SYS_INSTRUCTIONS")
 
@@ -953,11 +958,16 @@ run_agent() {
       fi
 
       # Construct the prompt for Codex based on command mode
-      local CODEX_PROMPT="Read prd.json and implement the next incomplete story. Follow system_instructions/system_instructions_codex.md. When all stories complete, output: RALPH_COMPLETE"
+      local BACKLOG_NAME=$(basename "$PRD_FILE")
+      local FIXES_NOTE=""
+      if [ "$USE_FIXES" = true ]; then
+        FIXES_NOTE=" IMPORTANT: You are in fixes mode. Use fixes.json instead of prd.json for all reads and writes."
+      fi
+      local CODEX_PROMPT="Read ${BACKLOG_NAME} and implement the next incomplete story. Follow system_instructions/system_instructions_codex.md. When all stories complete, output: RALPH_COMPLETE${FIXES_NOTE}"
       if [ "$CURRENT_COMMAND" = "filebug" ]; then
         CODEX_PROMPT="Analyze this bug report and produce a fix story. Bug: ${FILEBUG_DESCRIPTION}. ${FILEBUG_FILE:+Related file: $FILEBUG_FILE. }Follow system_instructions/system_instructions_filebug.md exactly."
       elif [ "$CURRENT_COMMAND" = "change" ]; then
-        CODEX_PROMPT="Apply this change request to prd.json: ${CHANGE_DESCRIPTION}. Follow system_instructions/system_instructions_change.md exactly."
+        CODEX_PROMPT="Apply this change request to ${BACKLOG_NAME}: ${CHANGE_DESCRIPTION}. Follow system_instructions/system_instructions_change.md exactly.${FIXES_NOTE}"
       elif [ "$CURRENT_COMMAND" = "review" ]; then
         CODEX_PROMPT="Review the codebase and produce fix stories. Follow system_instructions/system_instructions_review.md exactly."
       fi
@@ -1001,11 +1011,16 @@ run_agent() {
       fi
 
       # Construct the prompt based on command mode
-      local PROMPT="Read prd.json and implement the next incomplete story. Follow the instructions in system_instructions/system_instructions_copilot.md exactly. When all stories are complete, output: RALPH_COMPLETE"
+      local BACKLOG_NAME=$(basename "$PRD_FILE")
+      local FIXES_NOTE=""
+      if [ "$USE_FIXES" = true ]; then
+        FIXES_NOTE=" IMPORTANT: You are in fixes mode. Use fixes.json instead of prd.json for all reads and writes."
+      fi
+      local PROMPT="Read ${BACKLOG_NAME} and implement the next incomplete story. Follow the instructions in system_instructions/system_instructions_copilot.md exactly. When all stories are complete, output: RALPH_COMPLETE${FIXES_NOTE}"
       if [ "$CURRENT_COMMAND" = "filebug" ]; then
         PROMPT="Analyze this bug report and produce a fix story. Bug: ${FILEBUG_DESCRIPTION}. ${FILEBUG_FILE:+Related file: $FILEBUG_FILE. }Follow the instructions in system_instructions/system_instructions_filebug.md exactly."
       elif [ "$CURRENT_COMMAND" = "change" ]; then
-        PROMPT="Apply this change request to prd.json: ${CHANGE_DESCRIPTION}. Follow the instructions in system_instructions/system_instructions_change.md exactly."
+        PROMPT="Apply this change request to ${BACKLOG_NAME}: ${CHANGE_DESCRIPTION}. Follow the instructions in system_instructions/system_instructions_change.md exactly.${FIXES_NOTE}"
       elif [ "$CURRENT_COMMAND" = "review" ]; then
         PROMPT="Review the codebase and produce fix stories. Follow the instructions in system_instructions/system_instructions_review.md exactly."
       fi
@@ -1024,11 +1039,16 @@ run_agent() {
       command -v gemini >/dev/null 2>&1 || { echo -e "${RED}Error: Gemini CLI not found${NC}"; echo -e "${YELLOW}Install: npm install -g @anthropic/gemini-cli or pip install google-generativeai${NC}"; return 1; }
 
       # Construct the prompt for Gemini based on command mode
-      local PROMPT="Read prd.json and implement the next incomplete story. Follow the instructions in system_instructions/system_instructions.md exactly. When all stories are complete, output: RALPH_COMPLETE"
+      local BACKLOG_NAME=$(basename "$PRD_FILE")
+      local FIXES_NOTE=""
+      if [ "$USE_FIXES" = true ]; then
+        FIXES_NOTE=" IMPORTANT: You are in fixes mode. Use fixes.json instead of prd.json for all reads and writes."
+      fi
+      local PROMPT="Read ${BACKLOG_NAME} and implement the next incomplete story. Follow the instructions in system_instructions/system_instructions.md exactly. When all stories are complete, output: RALPH_COMPLETE${FIXES_NOTE}"
       if [ "$CURRENT_COMMAND" = "filebug" ]; then
         PROMPT="Analyze this bug report and produce a fix story. Bug: ${FILEBUG_DESCRIPTION}. ${FILEBUG_FILE:+Related file: $FILEBUG_FILE. }Follow the instructions in system_instructions/system_instructions_filebug.md exactly."
       elif [ "$CURRENT_COMMAND" = "change" ]; then
-        PROMPT="Apply this change request to prd.json: ${CHANGE_DESCRIPTION}. Follow the instructions in system_instructions/system_instructions_change.md exactly."
+        PROMPT="Apply this change request to ${BACKLOG_NAME}: ${CHANGE_DESCRIPTION}. Follow the instructions in system_instructions/system_instructions_change.md exactly.${FIXES_NOTE}"
       elif [ "$CURRENT_COMMAND" = "review" ]; then
         PROMPT="Review the codebase and produce fix stories. Follow the instructions in system_instructions/system_instructions_review.md exactly."
       fi

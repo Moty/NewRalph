@@ -125,7 +125,7 @@ select_agent_and_model() {
     local agent=$(yq '.agent.primary // "claude-code"' "$AGENT_CONFIG" 2>/dev/null)
     local model=""
     case "$agent" in
-      claude-code) model=$(yq '.claude-code.model // "claude-sonnet-4-20250514"' "$AGENT_CONFIG" 2>/dev/null) ;;
+      claude-code) model=$(yq '.claude-code.model // "claude-sonnet-4-5-20250929"' "$AGENT_CONFIG" 2>/dev/null) ;;
       github-copilot) model=$(yq '.github-copilot.model // "auto"' "$AGENT_CONFIG" 2>/dev/null) ;;
       gemini) model=$(yq '.gemini.model // "gemini-3-pro"' "$AGENT_CONFIG" 2>/dev/null) ;;
       codex) model=$(yq '.codex.model // "gpt-5.2-codex"' "$AGENT_CONFIG" 2>/dev/null) ;;
@@ -149,7 +149,7 @@ select_agent_and_model() {
   done <<< "$rotation_list"
 
   if [ "$agent_count" -eq 0 ]; then
-    echo "claude-code|claude-sonnet-4-20250514"
+    echo "claude-code|claude-sonnet-4-5-20250929"
     return
   fi
 

@@ -250,7 +250,7 @@ agent:
 
 # Claude Code settings
 claude-code:
-  model: claude-sonnet-4-20250514  # or: claude-3-5-sonnet, claude-3-opus, etc.
+  model: claude-sonnet-4-5-20250929  # or: claude-3-5-sonnet, claude-3-opus, etc.
   # flags: "--verbose"  # Uncomment for debugging
 
 # Codex settings
@@ -286,7 +286,8 @@ git:
 ```
 
 **Model Selection:**
-- `claude-sonnet-4-20250514` - Latest Claude Sonnet (recommended for Claude Code)
+- `claude-sonnet-4-5-20250929` - Latest Claude Sonnet 4.5 (recommended for Claude Code)
+- `claude-opus-4-5-20251101` - Latest Claude Opus 4.5 (powerful, for complex tasks)
 - `claude-opus-4.5` - Best quality for complex tasks (available in Copilot CLI)
 - `claude-sonnet-4.5` - Balanced quality/speed (available in Copilot CLI)
 - `codex-5.2` - Latest Codex (recommended)
@@ -606,10 +607,11 @@ agent-rotation:              # ordered list of agents to rotate through
 
 # Per-agent model lists (rotates through on failure)
 claude-code:
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-4-5-20250929
   models:
+    - claude-sonnet-4-5-20250929
+    - claude-opus-4-5-20251101
     - claude-sonnet-4-20250514
-    - claude-opus-4-20250514
     - claude-3-5-haiku-20241022
 ```
 

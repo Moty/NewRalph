@@ -391,7 +391,7 @@ agent:
   fallback: codex
 
 claude-code:
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-4-5-20250929
 
 codex:
   model: codex-5.2
